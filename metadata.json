@@ -1,0 +1,5 @@
+{
+  "name": "GroundTruth News",
+  "description": "A sophisticated news aggregator visualizing media bias and story clusters using advanced backend ML pipelines.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,67 @@
+import { 
+  Newspaper, 
+  MapPin, 
+  ShieldAlert, 
+  Search, 
+  Menu, 
+  CheckCircle2,
+  ChevronRight,
+  MoreHorizontal,
+  Info,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Share2,
+  Bookmark,
+  Printer,
+  Mail,
+  Code,
+  Flag,
+  ArrowUpRight,
+  Lock,
+  Filter,
+  ArrowLeft
+} from 'lucide-react';
+
+export const APP_NAME = "GROUND NEWS";
+
+export const ICONS = {
+  Menu: Menu,
+  Search: Search,
+  Map: MapPin,
+  Blindspot: ShieldAlert,
+  Check: CheckCircle2,
+  ChevronRight: ChevronRight,
+  More: MoreHorizontal,
+  Info: Info,
+  Link: ExternalLink,
+  Eye: Eye,
+  EyeOff: EyeOff,
+  Share: Share2,
+  Bookmark: Bookmark,
+  Print: Printer,
+  Mail: Mail,
+  Code: Code,
+  Flag: Flag,
+  ArrowUpRight: ArrowUpRight,
+  Lock: Lock,
+  Filter: Filter,
+  Back: ArrowLeft
+};
+
+export const BIAS_COLORS = {
+  left: 'bg-bias-left',
+  center: 'bg-bias-center',
+  right: 'bg-bias-right',
+};
+
+export const NAV_ITEMS = [
+  "Israel-Gaza",
+  "Business & Markets",
+  "G20 Summit",
+  "Trump Administration",
+  "Health & Medicine",
+  "Extreme Weather",
+  "Environment",
+  "Nature",
+];
