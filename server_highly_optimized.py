@@ -229,17 +229,10 @@ Article titles:
 {titles_text}
 
 Instructions:
-1. If the titles are in a language OTHER than English, first translate them to English
-2. Generate a cluster title based on the common theme/story across all titles
-3. The title MUST be in English regardless of the input language
-4. The title should be:
-   - Clear and descriptive (3-8 words)
-   - Professional news-like format
-   - Directly related to the main topic
-   - Written in proper English
-   - WITHOUT any quotes, special formatting, or extra text
-
-Output ONLY the English cluster title, nothing else - no explanations, no translations shown, just the final English title."""
+-generate a short, clear, and descriptive title in 3 to 8 words. 
+-The title should sound professional and news-like, directly related to the main topic across the articles. 
+-Do not include quotes or special characters. 
+-Output only the title text, nothing else."""
 
             model = genai.GenerativeModel('gemini-2.0-flash')
             response = model.generate_content(prompt)
@@ -261,20 +254,17 @@ Output ONLY the English cluster title, nothing else - no explanations, no transl
             prompt = f"""Based on these news articles, generate a comprehensive summary.
 
 Requirements:
-- Translate the summary to English if needed
 - Total length: 150-200 words
 - Write in 4-6 paragraphs
 - Each paragraph: 30-40 words
 - Professional news summary tone
 - Focus on main events and key points
 - No titles, no explanations, no numbering
-- The summary MUST be in fluent, professional English
-- Do NOT show the translation process, only output the final English summary
 
 Articles:
 {articles_text}
 
-Output ONLY the English summary paragraph, nothing else."""
+Output ONLY the summary paragraph, nothing else."""
 
             model = genai.GenerativeModel('gemini-2.0-flash')
             response = model.generate_content(prompt)
