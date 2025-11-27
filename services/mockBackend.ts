@@ -74,11 +74,19 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
       topicLabel = `Topic ${serverCluster.id}`;
     }
     
+    // Extract summaries from the backend response
+    const summaries = {
+      left: serverCluster.summaries?.lean_left || null,
+      center: serverCluster.summaries?.center || null,
+      right: serverCluster.summaries?.lean_right || null,
+    };
+
     return {
       id: `cluster-${serverCluster.id}`,
       topicLabel: topicLabel,
       keywords: [], // Could be extracted from label
-      summary: articles.map(a => a.title).join(' | ').substring(0, 200),
+      summary: summaries.center || summaries.left || summaries.right || articles.map(a => a.title).join(' | ').substring(0, 200), // Fallback for card view
+      summaries,
       articles,
       biasDistribution: {
         left: Math.round((bias.lean_left / total) * 100) || 0,
