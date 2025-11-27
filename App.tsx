@@ -7,6 +7,26 @@ import { fetchNewsFeed } from './services/mockBackend';
 import { NewsCluster } from './types';
 import { ICONS, NAV_ITEMS } from './constants';
 
+const sortClusters = (clusters: NewsCluster[]): NewsCluster[] => {
+  const twentyFourHoursAgo = new Date();
+  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+  return [...clusters].sort((a, b) => {
+    const aWasUpdatedRecently = new Date(a.lastUpdated) > twentyFourHoursAgo;
+    const bWasUpdatedRecently = new Date(b.lastUpdated) > twentyFourHoursAgo;
+
+    if (aWasUpdatedRecently && !bWasUpdatedRecently) {
+      return -1; // a comes first
+    }
+    if (!aWasUpdatedRecently && bWasUpdatedRecently) {
+      return 1; // b comes first
+    }
+
+    // If both are in the same recency group, sort by totalSources
+    return b.totalSources - a.totalSources;
+  });
+};
+
 const App: React.FC = () => {
   const [clusters, setClusters] = useState<NewsCluster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,14 +43,15 @@ const App: React.FC = () => {
         const data = await fetchNewsFeed();
         // Ensure data is strictly an array before setting state
         if (Array.isArray(data)) {
-            setClusters(data);
+            const sortedData = sortClusters(data);
+            setClusters(sortedData);
         } else {
             console.error("Data received is not an array:", data);
             setClusters([]); 
         }
         setError(null);
       } catch (err) {
-        console.error("Failed to load news clusters", err);
+  console.error("Failed to load news clusters", err);
         setError("Could not connect to local backend.");
       } finally {
         setLoading(false);

@@ -194,41 +194,6 @@ RSS_FEEDS = [
         "bias": "Center"
     },
     {
-        "url": "https://www.abplive.com/home/feed",
-        "source": "ABP Live",
-        "bias": "Right"
-    },
-    {
-        "url": "https://www.abplive.com/news/india/feed",
-        "source": "ABP Live",
-        "bias": "Left"
-    },
-    {
-        "url": "https://www.abplive.com/news/world/feed",
-        "source": "ABP Live",
-        "bias": "Right"
-    },
-    {
-        "url": "https://www.abplive.com/sports/feed",
-        "source": "ABP Live",
-        "bias": "Right"
-    },
-    {
-        "url": "https://www.abplive.com/business/feed",
-        "source": "ABP Live",
-        "bias": "Left"
-    },
-    {
-        "url": "https://www.abplive.com/trending/feed",
-        "source": "ABP Live",
-        "bias": "Right"
-    },
-    {
-        "url": "https://www.abplive.com/sports/ipl/feed",
-        "source": "ABP Live",
-        "bias": "Left"
-    },
-    {
         "url": "https://www.republicworld.com/rss/business.xml",
         "source": "Republic World",
         "bias": "Left"
@@ -301,11 +266,6 @@ RSS_FEEDS = [
     {
         "url": "https://zeenews.india.com/rss/blog-news.xml",
         "source": "Zee News",
-        "bias": "Right"
-    },
-    {
-        "url": "https://www.aajtak.in/rssfeeds/?id=home",
-        "source": "Aaj Tak",
         "bias": "Right"
     },
     {
@@ -404,36 +364,6 @@ RSS_FEEDS = [
         "bias": "Right"
     },
     {
-        "url": "https://ddnewsportal.com/rss/latest-posts",
-        "source": "DD News",
-        "bias": "Right"
-    },
-    {
-        "url": "https://ddnewsportal.com/rss/category/article",
-        "source": "DD News",
-        "bias": "Center"
-    },
-    {
-        "url": "https://ddnewsportal.com/rss/category/business",
-        "source": "DD News",
-        "bias": "Right"
-    },
-    {
-        "url": "https://ddnewsportal.com/rss/category/National",
-        "source": "DD News",
-        "bias": "Left"
-    },
-    {
-        "url": "https://ddnewsportal.com/rss/category/sports",
-        "source": "DD News",
-        "bias": "Center"
-    },
-    {
-        "url": "https://ddnewsportal.com/rss/category/Features",
-        "source": "DD News",
-        "bias": "Right"
-    },
-    {
         "url": "https://www.thequint.com/feed",
         "source": "The Quint",
         "bias": "Center"
@@ -508,9 +438,383 @@ RSS_FEEDS = [
         "source": "CNBC TV18",
         "bias": "Left"
     },
+
     {
-        "url": "https://www.cnbctv18.com/commonfeeds/v1/cne/rss/world.xml",
-        "source": "CNBC TV18",
+        "url": "https://news.google.com/rss/search?q=India%20site:bbc.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "BBC",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:reuters.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Reuters",
         "bias": "Right"
     },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:cnn.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "CNN",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:theguardian.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Guardian",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:nytimes.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The New York Times",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:washingtonpost.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Washington Post",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:aljazeera.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Al Jazeera",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:dw.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Deutsche Welle (DW)",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:bloomberg.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Bloomberg",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:cnbc.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "CNBC",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:time.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "TIME",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:newsweek.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Newsweek",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:theatlantic.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Atlantic",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:abcnews.go.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "ABC News",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:nbcnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "NBC News",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:cbsnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "CBS News",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:usatoday.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "USA Today",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:latimes.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Los Angeles Times",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:huffpost.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "HuffPost",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:dailymail.co.uk&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Daily Mail",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:telegraph.co.uk&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Telegraph",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thesun.co.uk&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Sun",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:independent.co.uk&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Independent",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:ft.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Financial Times",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:economist.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Economist",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:news.sky.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Sky News",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:channel4.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Channel 4 News",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:france24.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "France 24",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:lemonde.fr%2Fen&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Le Monde (English)",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:euronews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Euronews",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:politico.eu&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Politico Europe",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:scmp.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "South China Morning Post",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:japantimes.co.jp&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Japan Times",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:straitstimes.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Straits Times",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thestar.com.my&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Star (Malaysia)",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:bangkokpost.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Bangkok Post",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thejakartapost.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Jakarta Post",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:dawn.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Dawn",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:nation.com.pk&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Nation (Pakistan)",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:tribune.com.pk&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Express Tribune",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:gulfnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Gulf News",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20siteKHaleej%20siteaces:khaleejtimes.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Khaleej Times",
+        "bias": "Right"
+    },
+
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thenationalnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The National (UAE)",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:herald.co.zw&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Herald (Zimbabwe)",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:vanguardngr.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Vanguard (Nigeria)",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:dailysun.co.za&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Daily Sun (South Africa)",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:sabcnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "SABC News",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:theglobeandmail.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Globe and Mail (Canada)",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thestar.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Toronto Star",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:nationalpost.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "National Post",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:nzherald.co.nz&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "New Zealand Herald",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:apnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Associated Press (AP)",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:afp.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Agence France-Presse (AFP)",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:aa.com.tr&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Anadolu Agency",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:tass.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "TASS (English)",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:xinhuanet.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Xinhua (English)",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:foxnews.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Fox News",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thehill.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Hill",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:axios.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Axios",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:vox.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Vox",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:politico.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Politico (US)",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:foreignpolicy.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Foreign Policy",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:foreignaffairs.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Foreign Affairs",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:asia.nikkei.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Nikkei Asia",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:businessinsider.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Business Insider",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:fortune.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Fortune",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:wsj.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Wall Street Journal",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:rferl.org&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Radio Free Europe/Radio Liberty",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thediplomat.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The Diplomat",
+        "bias": "Center"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:asiatimes.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Asia Times",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:laht.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "Latin American Herald Tribune",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:mercopress.com&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "MercoPress",
+        "bias": "Right"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:thenewhumanitarian.org&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "The New Humanitarian",
+        "bias": "Left"
+    },
+    {
+        "url": "https://news.google.com/rss/search?q=India%20site:opendemocracy.net&hl=en-IN&gl=IN&ceid=IN:en",
+        "source": "OpenDemocracy",
+        "bias": "Left"
+    },
+    {
+       "url": "https://news.google.com/rss/search?q=India%20site:khaleejtimes.com&hl=en-IN&gl=IN&ceid=IN:en",
+       "source": "Khaleej Times",
+       "bias": "center"
+    },
+
+    
 ]

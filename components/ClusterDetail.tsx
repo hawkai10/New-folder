@@ -263,7 +263,7 @@ const ClusterDetail: React.FC<ClusterDetailProps> = ({ cluster, onBack }) => {
                     <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 uppercase">
                       {article.source.name.substring(0, 2)}
                     </div>
-                    <span className="text-xs font-bold text-gray-900">{article.source.domain}</span>
+                    <span className="text-xs font-bold text-gray-900">{article.source.name}</span>
 
                     {/* Bias Badge */}
                     <span className={`flex items-center px-2 py-0.5 rounded text-[10px] font-bold text-white ${getBiasColor(article.source.bias)}`}>
