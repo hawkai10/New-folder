@@ -1,5 +1,7 @@
 import React from 'react';
 import { NewsCluster } from '../types';
+import { getBlindspotSide } from '../src/utils';
+
 import BiasMeter from './BiasMeter';
 import { ICONS } from '../constants';
 
@@ -11,8 +13,8 @@ interface ArticleCardProps {
 
 const ArticleCard: React.FC<ArticleCardProps> = ({ cluster, variant = 'standard', onClick }) => {
   // Determine if this is a "blindspot"
-  const isBlindspot = Math.max(cluster.biasDistribution.left, cluster.biasDistribution.right) > 50 && 
-                      Math.min(cluster.biasDistribution.left, cluster.biasDistribution.right) < 15;
+  const blindspotSide = getBlindspotSide(cluster);
+  const isBlindspot = blindspotSide !== null;
 
   const formatDate = (date: string) => {
     const d = new Date(date);

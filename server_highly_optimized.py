@@ -92,7 +92,7 @@ def robust_date_parser(date_string: Optional[str]) -> Optional[datetime]:
 # CONFIGURATION
 # ============================================================================
 DB_PATH = "news.db"
-POLL_INTERVAL = 100
+POLL_INTERVAL = 900
 SIMILARITY_THRESHOLD = 0.65  # OPTIMIZED: Lowered from 0.75 for better clustering
 MAX_ARTICLES_PER_CLUSTER = 1000
 TIME_WINDOW_HOURS = 24  # NEW: 24-hour time window for clustering

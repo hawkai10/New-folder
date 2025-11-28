@@ -7,6 +7,7 @@ import TopicPage from './components/TopicPage';
 import { fetchNewsFeed, fetchKeywords } from './services/mockBackend';
 import { NewsCluster } from './types';
 import { ICONS, NAV_ITEMS } from './constants';
+import { getBlindspotSide } from './src/utils';
 
 const sortClusters = (clusters: NewsCluster[]): NewsCluster[] => {
   return [...clusters].sort((a, b) => {
@@ -104,14 +105,10 @@ const [error, setError] = useState<string | null>(null);
   const topStories = safeClusters.slice(2, 6);
   const feedStories = safeClusters.slice(6);
   
-  const blindspots = safeClusters.filter(c => {
-      if (!c.biasDistribution) return false;
-      const { left, right } = c.biasDistribution;
-      return (left < 15 && right > 50) || (right < 15 && left > 50);
-  });
+  const blindspots = safeClusters.filter(c => getBlindspotSide(c) !== null);
 
   return (
-    <div className="min-h-screen font-sans bg-[#F8F9FA] text-brand-black selection:bg-blue-100">
+    <div className="min-h-screen font-sans bg-[#F8F9FA] text-brand-black selection:bg-blue-100 selection:text-brand-blue">
       
       <LeftSidebar 
         isOpen={isMenuOpen} 
@@ -276,7 +273,7 @@ const [error, setError] = useState<string | null>(null);
                             Sidebar Widgets
                         */}
                         <div className="lg:col-span-3 space-y-6 order-3 lg:sticky lg:top-20">
-                            <Sidebar blindspots={blindspots} />
+                            <Sidebar blindspots={blindspots} onClusterClick={handleClusterClick} />
                             
                             {/* Footer Links */}
                             <div className="pt-4 border-t border-gray-200">

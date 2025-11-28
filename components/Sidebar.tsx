@@ -3,12 +3,13 @@ import { ICONS } from '../constants';
 import { NewsCluster } from '../types';
 
 interface SidebarProps {
-  blindspots: NewsCluster[];
+    blindspots: NewsCluster[];
+    onClusterClick: (cluster: NewsCluster) => void;
 }
-
-const Sidebar: React.FC<SidebarProps> = ({ blindspots }) => {
-  return (
-    <div className="space-y-6">
+  
+const Sidebar: React.FC<SidebarProps> = ({ blindspots, onClusterClick }) => {
+    return (
+      <div className="space-y-6">
       
       {/* Blindspot Widget */}
       <div className="bg-white rounded-xl border border-brand-border shadow-card p-6">
@@ -24,17 +25,17 @@ const Sidebar: React.FC<SidebarProps> = ({ blindspots }) => {
         </p>
 
         <div className="space-y-6">
-            {blindspots.length === 0 ? (
-                <div className="text-sm text-gray-400 text-center py-4 bg-gray-50 rounded-lg">No active blindspots.</div>
-            ) : (
-                blindspots.slice(0, 3).map(cluster => {
-                    const isLeftBlindspot = cluster.biasDistribution.left < 15;
-                    
-                    return (
-                        <div key={cluster.id} className="group cursor-pointer">
-                             <div className="flex items-center mb-2">
-                                {isLeftBlindspot ? (
-                                    <span className="text-[10px] font-bold text-bias-left bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1">
+        {blindspots.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-4 bg-gray-50 rounded-lg">No active blindspots.</div>
+        ) : (
+            blindspots.slice(0, 3).map(cluster => {
+                const isLeftBlindspot = cluster.biasDistribution.left < 15;
+                
+                return (
+                    <div key={cluster.id} className="group cursor-pointer" onClick={() => onClusterClick(cluster)}>
+                         <div className="flex items-center mb-2">
+                            {isLeftBlindspot ? (
+                                <span className="text-[10px] font-bold text-bias-left bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1">
                                         <div className="w-1.5 h-1.5 rounded-full bg-bias-left"></div> Left Missed
                                     </span>
                                 ) : (
