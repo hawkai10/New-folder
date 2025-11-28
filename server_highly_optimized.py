@@ -38,12 +38,32 @@ from bertopic import BERTopic
 import google.generativeai as genai
 from rss_feeds_config import RSS_FEEDS
 from dateutil.parser import parse as date_parse
+from keyword_assignment import KeywordAssigner
 
 load_dotenv()
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+def parse_keywords_from_file(filepath: str) -> List[str]:
+    """
+    Parses keywords from the custom text file format in keywords.db.
+    It reads all lines that don't start with '[' and aggregates all
+    comma-separated values into a single list of unique keywords.
+    """
+    keywords = set()
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line.startswith('[') and line:
+                    line_keywords = [kw.strip() for kw in line.split(',')]
+                    keywords.update(line_keywords)
+    except FileNotFoundError:
+        logger.error(f"Keyword file not found at: {filepath}")
+    
+    return [kw for kw in list(keywords) if kw]
+
 def strip_html_tags(text: str) -> str:
     """Remove HTML tags from text."""
     if not isinstance(text, str):
@@ -679,6 +699,21 @@ class OptimizationWorker:
         self.db_path = db_path
         self.running = False
 
+        # NEW: Initialize Keyword Assigner
+        logger.info("Initializing Keyword Assigner...")
+        try:
+            self.keyword_assigner = KeywordAssigner(model=self.model_manager.sentence_transformer)
+            keywords_list = parse_keywords_from_file('keywords.db')
+            if keywords_list:
+                self.keyword_assigner.load_keywords(keywords_list)
+                logger.info(f"Loaded {len(keywords_list)} keywords for assignment.")
+            else:
+                logger.warning("No keywords loaded from keywords.db. Keyword assignment will be disabled.")
+                self.keyword_assigner = None
+        except Exception as e:
+            logger.error("Failed to initialize KeywordAssigner", exc_info=True)
+            self.keyword_assigner = None
+
     def optimize_loop(self):
         """Periodically run optimization."""
         self.running = True
@@ -850,6 +885,11 @@ class OptimizationWorker:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
+            # Fetch cluster label
+            cursor.execute('SELECT label FROM clusters WHERE id = ?', (cluster_id,))
+            cluster_label_result = cursor.fetchone()
+            cluster_label = cluster_label_result[0] if cluster_label_result else ""
+
             cursor.execute('''
                 SELECT title, summary, bias FROM articles WHERE cluster_id = ?
                 ORDER BY added_date DESC
@@ -887,10 +927,27 @@ class OptimizationWorker:
                 common_summary = self.model_manager.generate_bias_group_summary_with_gemini(all_articles)
                 summaries["center"] = common_summary
 
-            # Generate keywords from summaries
+            # Generate keywords using KeywordAssigner from keywords.db
             keywords = None
             all_summaries_text = " ".join(s for s in summaries.values() if s)
-            if all_summaries_text:
+            
+            if self.keyword_assigner and (cluster_label or all_summaries_text):
+                try:
+                    # Use label as title and combined summaries as summary text
+                    assigned = self.keyword_assigner.assign_keywords(
+                        title=cluster_label,
+                        summary=all_summaries_text,
+                        top_k=5,        # Max keywords to assign
+                        threshold=0.25  # Min similarity score
+                    )
+                    if assigned:
+                        keywords = ", ".join([kw for kw, score in assigned])
+                except Exception:
+                    logger.error(f"Error assigning keywords for cluster {cluster_id}", exc_info=True)
+            
+            # Fallback to Gemini if KeywordAssigner failed or is disabled
+            if not keywords and all_summaries_text:
+                logger.warning(f"Falling back to Gemini for keyword generation for cluster {cluster_id}")
                 keywords = self.model_manager.generate_cluster_keywords_with_gemini(all_summaries_text)
 
             # Update database
