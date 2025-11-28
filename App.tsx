@@ -1,28 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import ArticleCard from './components/ArticleCard';
-import ClusterCard from './components/ClusterCard';
 import ClusterDetail from './components/ClusterDetail';
 import { fetchNewsFeed } from './services/mockBackend';
 import { NewsCluster } from './types';
 import { ICONS, NAV_ITEMS } from './constants';
 
 const sortClusters = (clusters: NewsCluster[]): NewsCluster[] => {
-  const twentyFourHoursAgo = new Date();
-  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-
   return [...clusters].sort((a, b) => {
-    const aWasUpdatedRecently = new Date(a.lastUpdated) > twentyFourHoursAgo;
-    const bWasUpdatedRecently = new Date(b.lastUpdated) > twentyFourHoursAgo;
-
-    if (aWasUpdatedRecently && !bWasUpdatedRecently) {
-      return -1; // a comes first
-    }
-    if (!aWasUpdatedRecently && bWasUpdatedRecently) {
-      return 1; // b comes first
-    }
-
-    // If both are in the same recency group, sort by totalSources
+    // Sort primarily by totalSources (popularity/coverage)
     return b.totalSources - a.totalSources;
   });
 };
@@ -41,25 +27,33 @@ const App: React.FC = () => {
       try {
         setLoading(true);
         const data = await fetchNewsFeed();
-        // Ensure data is strictly an array before setting state
+        
         if (Array.isArray(data)) {
-            const sortedData = sortClusters(data);
+            // Filter: Only show clusters updated in the last 24 hours
+            const twentyFourHoursAgo = new Date();
+            twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+            
+            const freshClusters = data.filter(cluster => {
+                const clusterDate = new Date(cluster.lastUpdated);
+                return clusterDate > twentyFourHoursAgo;
+            });
+
+            const sortedData = sortClusters(freshClusters);
             setClusters(sortedData);
         } else {
-            console.error("Data received is not an array:", data);
             setClusters([]); 
         }
         setError(null);
       } catch (err) {
-  console.error("Failed to load news clusters", err);
-        setError("Could not connect to local backend.");
+        console.error("Failed to load news clusters", err);
+        setError("Could not connect to backend service.");
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-    const interval = setInterval(loadData, 60000); // Poll every minute
+    const interval = setInterval(loadData, 60000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -75,12 +69,14 @@ const App: React.FC = () => {
       window.scrollTo(0, 0);
   };
 
-  // Organize Data with safety checks
   const safeClusters = Array.isArray(clusters) ? clusters : [];
-  const dailyBriefingCluster = safeClusters[0];
-  const topStories = safeClusters.slice(1, 10);
   
-  // Calculate blindspots for sidebar
+  // Distribute content for the 3-column layout
+  const heroStory = safeClusters[0];
+  const briefingStory = safeClusters[1];
+  const topStories = safeClusters.slice(2, 6);
+  const feedStories = safeClusters.slice(6);
+  
   const blindspots = safeClusters.filter(c => {
       if (!c.biasDistribution) return false;
       const { left, right } = c.biasDistribution;
@@ -88,147 +84,174 @@ const App: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen font-sans bg-gray-50 text-gray-800">
+    <div className="min-h-screen font-sans bg-[#F8F9FA] text-brand-black selection:bg-blue-100">
       
       {/* 1. Header Section */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
             <div className="flex justify-between items-center h-16">
-                {/* Left: Mobile Menu & Logo */}
-                <div className="flex items-center gap-4">
-                    <button className="lg:hidden text-gray-500">
+                {/* Left: Branding & Main Nav */}
+                <div className="flex items-center gap-6">
+                    <button className="lg:hidden text-gray-500 hover:text-black">
                         <ICONS.Menu size={24} />
                     </button>
-                    <div className="flex items-center space-x-2 cursor-pointer" onClick={handleBack}>
-                         <div className="w-8 h-8 bg-black text-white flex items-center justify-center font-bold text-xl rounded-sm">G</div>
-                         <span className="font-bold text-xl tracking-tighter hidden sm:block">GROUND NEWS</span>
+                    <div className="flex items-center space-x-2 cursor-pointer group" onClick={handleBack}>
+                         <div className="w-9 h-9 bg-black text-white flex items-center justify-center font-bold text-lg rounded-[4px] group-hover:bg-gray-800 transition-colors">G</div>
+                         <span className="font-extrabold text-2xl tracking-tighter hidden sm:block font-sans">GROUND <span className="font-medium">NEWS</span></span>
                     </div>
                     
-                    {/* Desktop Nav */}
-                    <nav className="hidden lg:flex space-x-6 ml-6 text-sm font-medium text-gray-500">
-                        <a href="#" className="text-black" onClick={handleBack}>Home</a>
-                        <a href="#" className="hover:text-black">For You</a>
-                        <a href="#" className="hover:text-black">Local</a>
-                        <a href="#" className="hover:text-black">Blindspot</a>
+                    <nav className="hidden xl:flex space-x-2 ml-2 text-sm font-bold text-gray-500">
+                        <a href="#" className="text-black bg-gray-100 px-4 py-2 rounded-full" onClick={handleBack}>Home</a>
+                        <a href="#" className="hover:text-black hover:bg-gray-100 px-4 py-2 rounded-full transition-colors">For You</a>
+                        <a href="#" className="hover:text-black hover:bg-gray-100 px-4 py-2 rounded-full transition-colors">Local</a>
+                        <a href="#" className="hover:text-black hover:bg-gray-100 px-4 py-2 rounded-full transition-colors">Blindspot</a>
                     </nav>
                 </div>
 
-                {/* Right: Search & Actions */}
-                <div className="flex items-center space-x-4">
-                    <div className="hidden md:flex relative">
-                        <ICONS.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                {/* Right: Search & Auth */}
+                <div className="flex items-center space-x-3">
+                    <div className="hidden md:flex relative group">
+                        <ICONS.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-gray-600" size={16} />
                         <input 
                             type="text" 
                             placeholder="Search" 
-                            className="bg-gray-100 border-none rounded-md py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-gray-300 outline-none w-64"
+                            className="bg-gray-100 border border-transparent group-hover:border-gray-200 rounded-md py-2 pl-10 pr-4 text-sm w-48 xl:w-80 transition-all focus:ring-0 focus:border-gray-400 focus:bg-white placeholder-gray-500"
                         />
                     </div>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 transition-colors">
+                    <button className="bg-black text-white px-6 py-2 rounded-md text-sm font-bold hover:bg-gray-800 transition-transform active:scale-95 shadow-sm">
                         Subscribe
                     </button>
-                    <button className="text-sm font-semibold border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-100">
+                    <button className="hidden sm:block text-sm font-bold text-gray-600 hover:text-black px-4 py-2 border border-gray-200 rounded-md bg-white">
                         Login
                     </button>
                 </div>
             </div>
             
-            {/* Sub Nav / Ticker */}
-            <div className="hidden md:flex items-center space-x-6 h-12 border-t border-gray-200 text-xs uppercase font-semibold text-gray-500 tracking-wider overflow-x-auto no-scrollbar">
+            {/* Ticker / Sub Nav */}
+            <div className="hidden md:flex items-center space-x-1 h-10 border-t border-gray-100 text-[11px] font-bold text-gray-500 tracking-wide overflow-x-auto no-scrollbar">
                 {NAV_ITEMS.map((item, idx) => (
-                    <a key={idx} href="#" className="whitespace-nowrap hover:text-blue-600 transition-colors">{item}</a>
+                    <a key={idx} href="#" className="whitespace-nowrap px-3 py-1 hover:text-black transition-colors border-r border-gray-100 last:border-0">{item}</a>
                 ))}
             </div>
         </div>
       </header>
 
-      {/* Main Content Router */}
-      <main>
+      {/* Main Content */}
+      <main className="pt-8 pb-16">
         {view === 'detail' && selectedCluster ? (
              <ClusterDetail cluster={selectedCluster} onBack={handleBack} />
         ) : (
-            // HOME VIEW
-            <>
-                {/* 2. Hero Section */}
-                <section className="bg-white border-b border-gray-200 py-16 text-center">
-                    <div className="max-w-4xl mx-auto px-4">
-                        <h1 className="font-bold text-4xl md:text-5xl text-gray-900 mb-4">
-                            See the full story from every angle.
-                        </h1>
-                        <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-                            Unbiased news coverage from thousands of sources. All in one place.
-                        </p>
-                        <div className="flex justify-center gap-4">
-                            <button className="bg-blue-600 text-white px-6 py-3 rounded-md font-semibold hover:bg-blue-700 transition-transform hover:-translate-y-0.5 shadow-lg">
-                                Get Started Free
-                            </button>
-                            <button className="bg-gray-200 text-gray-800 px-6 py-3 rounded-md font-semibold hover:bg-gray-300">
-                                Download the App
-                            </button>
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
+                {error ? (
+                    <div className="max-w-md mx-auto bg-white border border-red-100 p-8 rounded-2xl shadow-sm text-center my-20">
+                        <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <ICONS.Blindspot className="text-red-500" size={24} />
                         </div>
+                        <h2 className="text-gray-900 font-bold text-lg mb-2">Connection Issue</h2>
+                        <p className="text-gray-500 mb-6 text-sm">We couldn't reach the news server.</p>
+                        <button onClick={() => window.location.reload()} className="text-sm font-bold text-blue-600 hover:underline">Try Again</button>
                     </div>
-                </section>
-
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                    {error ? (
-                        <div className="bg-red-100 border border-red-300 p-6 rounded-lg text-center">
-                            <ICONS.Blindspot className="text-red-600 mx-auto mb-4" size={48} />
-                            <h2 className="text-red-800 font-bold text-xl mb-2">Backend Connection Error</h2>
-                            <p className="text-red-700 mb-4">Could not connect to the local Python server. Please ensure it's running correctly.</p>
-                            <code className="bg-white px-3 py-1 rounded border border-red-200 text-sm font-mono">python server.py</code>
-                        </div>
-                    ) : loading ? (
-                        <div className="flex justify-center items-center py-20">
-                            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-gray-900"></div>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                ) : loading ? (
+                    <div className="flex flex-col justify-center items-center py-40 space-y-4">
+                        <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-gray-200 border-t-black"></div>
+                        <span className="text-sm font-bold text-gray-400 animate-pulse">Loading Feed...</span>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        
+                        {/* --- LEFT COLUMN (3 cols) --- 
+                            Daily Briefing & Top Stories List 
+                        */}
+                        <div className="lg:col-span-3 space-y-8 order-2 lg:order-1">
                             
-                            {/* Left Column: Daily Briefing (Starts at 4 cols wide on LG) */}
-                            <div className="lg:col-span-4 space-y-6">
-                                <h2 className="font-bold text-2xl text-gray-900 border-b pb-2">Daily Briefing</h2>
-                                {dailyBriefingCluster ? (
-                                    <ClusterCard cluster={dailyBriefingCluster} onClick={() => handleClusterClick(dailyBriefingCluster)} />
+                            {/* Daily Briefing Section */}
+                            <section>
+                                <h2 className="font-serif font-black text-xl text-gray-900 mb-4">Daily Briefing</h2>
+                                {briefingStory ? (
+                                    <ArticleCard 
+                                        cluster={briefingStory} 
+                                        variant="briefing"
+                                        onClick={() => handleClusterClick(briefingStory)} 
+                                    />
                                 ) : (
-                                    <div className="p-4 bg-gray-100 rounded-md text-center text-gray-500">No briefing available.</div>
+                                    <div className="text-sm text-gray-400 italic mb-6">No briefing available</div>
                                 )}
+                            </section>
 
-                                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <span className="text-yellow-500">★★★★★</span>
-                                        <span className="font-semibold">12,000+ Reviews</span>
-                                    </div>
-                                    <p className="text-sm text-gray-600">Top-rated on the App Store & Google Play.</p>
-                                </div>
-                            </div>
-
-                            {/* Center Column: Top News Stories (Starts at 5 cols wide on LG) */}
-                            <div className="lg:col-span-5 space-y-4">
-                                <h2 className="font-bold text-2xl text-gray-900 border-b pb-2 mb-4">Top Stories</h2>
-                                {topStories.length > 0 ? (
-                                    topStories.map(cluster => (
+                            {/* Top News Stories List */}
+                            <section>
+                                <h2 className="font-serif font-black text-xl text-gray-900 mb-4">Top News Stories</h2>
+                                <div className="space-y-4">
+                                    {topStories.map(cluster => (
                                         <ArticleCard 
                                             key={cluster.id} 
                                             cluster={cluster} 
+                                            variant="compact"
                                             onClick={() => handleClusterClick(cluster)}
                                         />
-                                    ))
-                                ) : (
-                                    <p className="text-gray-500">No top stories available at the moment.</p>
-                                )}
-                            </div>
-
-                            {/* Right Column: Sidebar Widgets (Starts at 3 cols wide on LG) */}
-                            <div className="lg:col-span-3">
-                                <Sidebar blindspots={blindspots} />
-                            </div>
-
+                                    ))}
+                                    {topStories.length === 0 && (
+                                         <div className="text-sm text-gray-400 italic">No top stories currently available</div>
+                                    )}
+                                </div>
+                            </section>
                         </div>
-                    )}
-                </div>
-            </>
+
+                        {/* --- CENTER COLUMN (6 cols - THICKEST) --- 
+                            Hero & Main Feed 
+                        */}
+                        <div className="lg:col-span-6 space-y-6 order-1 lg:order-2">
+                            {/* Hero Card */}
+                            {heroStory ? (
+                                <ArticleCard 
+                                    cluster={heroStory} 
+                                    variant="hero"
+                                    onClick={() => handleClusterClick(heroStory)} 
+                                />
+                            ) : (
+                                <div className="w-full h-64 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400">
+                                    No featured stories in the last 24h
+                                </div>
+                            )}
+                            
+                            {/* Feed Items */}
+                            <div className="space-y-6">
+                                {feedStories.map(cluster => (
+                                    <ArticleCard 
+                                        key={cluster.id} 
+                                        cluster={cluster} 
+                                        variant="standard"
+                                        onClick={() => handleClusterClick(cluster)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* --- RIGHT COLUMN (3 cols) --- 
+                            Sidebar Widgets
+                        */}
+                        <div className="lg:col-span-3 space-y-6 order-3 lg:sticky lg:top-20">
+                            <Sidebar blindspots={blindspots} />
+                            
+                            {/* Footer Links */}
+                            <div className="pt-4 border-t border-gray-200">
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-medium text-gray-400">
+                                    <a href="#" className="hover:text-gray-600">About</a>
+                                    <a href="#" className="hover:text-gray-600">History</a>
+                                    <a href="#" className="hover:text-gray-600">Mission</a>
+                                    <a href="#" className="hover:text-gray-600">Blog</a>
+                                    <a href="#" className="hover:text-gray-600">Methodology</a>
+                                    <a href="#" className="hover:text-gray-600">Contact</a>
+                                    <span className="w-full mt-2">© 2025 Ground News Clone</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                )}
+            </div>
         )}
       </main>
-
     </div>
   );
 };

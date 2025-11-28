@@ -16,18 +16,20 @@
             },
             colors: {
               brand: {
-                black: '#1a1a1a',
-                dark: '#2d2d2d',
-                gray: '#f3f4f6',
+                black: '#202124',
+                dark: '#3C4043',
+                gray: '#F8F9FA',
+                border: '#E8EAED'
               },
               bias: {
-                left: '#3069c4',    // Strong Blue
-                center: '#9ca3af',  // Neutral Gray
-                right: '#d92828',   // Strong Red
+                left: '#3367CC',    // Ground News Blue
+                center: '#9AA0A6',  // Neutral Gray
+                right: '#E63946',   // Ground News Red
               }
             },
             boxShadow: {
-              'card': '0 1px 3px rgba(0,0,0,0.05)',
+              'card': '0 1px 2px 0 rgba(60,64,67,0.1), 0 1px 3px 1px rgba(60,64,67,0.05)',
+              'card-hover': '0 1px 3px 0 rgba(60,64,67,0.2), 0 4px 8px 3px rgba(60,64,67,0.05)',
             }
           }
         }
@@ -35,12 +37,15 @@
     </script>
     <style>
       body {
-        background-color: #f9fafb;
-        color: #1a1a1a;
+        background-color: #F8F9FA;
+        color: #202124;
       }
-      .pattern-grid {
-        background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
-        background-size: 20px 20px;
+      .no-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
       }
     </style>
   <script type="importmap">

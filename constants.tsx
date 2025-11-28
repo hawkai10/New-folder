@@ -26,6 +26,7 @@ import {
 export const APP_NAME = "GROUND NEWS";
 
 export const ICONS = {
+  Newspaper: Newspaper,
   Menu: Menu,
   Search: Search,
   Map: MapPin,
