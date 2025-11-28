@@ -1,0 +1,86 @@
+{
+    "Politics & Governance": [
+        "Politics", "Elections", "Government policies", "Parliament proceedings", "National security", "Defense", "Central government schemes", "State government news", "Governance", "Public policy", "Coalition politics", "Opposition parties", "Ruling party updates", "Political alliances", "Political appointments", "Cabinet reshuffles", "Ministerial statements", "Political rallies", "Party manifestos", "Political scandals", "Defamation cases", "Floor crossing", "No-confidence motions", "Ordinances", "Presidential orders", "Governor controversies", "BJP", "INC", "BHARTIYA JANTA PARTY", "CONGRESS", "NARENDRA MODI", "RAHUL GANDHI"
+    ],
+    "Legislative & Parliamentary Affairs": [
+        "Lok Sabha proceedings", "Rajya Sabha proceedings", "Question hour", "Zero hour", "Parliamentary committees", "Bill introductions", "Bill amendments", "Legislative debates", "Parliamentary disruptions", "Voting records", "Parliamentary privileges", "Parliamentary sessions", "Budget session", "Monsoon session", "Winter session"
+    ],
+    "Constitutional & Legal Matters": [
+        "Constitutional amendments", "Article 370 updates", "Emergency provisions", "Fundamental rights issues", "Directive principles", "Presidential powers", "Vice Presidential affairs", "Union territories governance", "Special category states", "Inter-state disputes", "Constitutional validity challenges", "Sedition law debates", "Constitutional benches"
+    ],
+    "Defense & Armed Forces": [
+        "Indian Army news", "Indian Navy updates", "Indian Air Force", "Border tensions", "Military procurement", "Defense deals", "Defense budget", "Military exercises", "Veterans affairs", "Defense manufacturing", "Indigenous defense production", "Defense technology", "Strategic partnerships", "Paramilitary forces", "BSF (Border Security Force)", "CRPF updates", "CISF news", "ITBP operations", "Assam Rifles", "Coast Guard"
+    ],
+    "National Security & Intelligence": [
+        "Intelligence agencies", "RAW operations", "IB (Intelligence Bureau)", "Counter-terrorism operations", "Internal security", "Naxalism", "Left-wing extremism", "Insurgency updates", "Anti-terror laws", "UAPA cases", "National Security Act", "Sedition charges", "Espionage cases", "Cybersecurity threats", "Data protection", "National security advisor updates"
+    ],
+    "Foreign Affairs & Diplomacy": [
+        "Ministry of External Affairs", "Bilateral relations", "Multilateral forums", "India-US relations", "India-Russia ties", "India-UK partnership", "BRICS summits", "G20 participation", "SAARC affairs", "ASEAN engagement", "Quad alliance", "Indo-Pacific strategy", "Diplomatic appointments", "High commission updates", "Embassy news", "Consular services", "Passport issues", "Visa policies", "Extradition cases", "International treaties", "Trade agreements", "Defense pacts"
+    ],
+    "Central Government Departments": [
+        "Ministry of Home Affairs", "Ministry of Finance", "Ministry of Defense", "Ministry of External Affairs", "Ministry of Railways", "Ministry of Road Transport", "Ministry of Civil Aviation", "Ministry of Power", "Ministry of Coal", "Ministry of Petroleum", "Ministry of Rural Development", "Ministry of Agriculture", "Ministry of Commerce", "Ministry of MSME", "Ministry of Electronics and IT", "NITI Aayog", "Cabinet Secretariat", "PMO (Prime Minister's Office)"
+    ],
+    "Central Agencies & Bodies": [
+        "CBI investigations", "ED (Enforcement Directorate) raids", "Income Tax raids", "Customs department", "NIA (National Investigation Agency)", "NCPCR (Child Rights)", "NHRC (Human Rights)", "NCW (Women's Commission)", "NCSC (Scheduled Castes)", "NCST (Scheduled Tribes)", "NCM (Minorities)", "Election Commission", "Comptroller and Auditor General", "UPSC (Union Public Service Commission)", "SSC (Staff Selection Commission)", "Central Vigilance Commission", "Lokpal", "Information Commission"
+    ],
+    "Flagship National Schemes": [
+        "PM-KISAN", "Ayushman Bharat", "Swachh Bharat Abhiyan", "Digital India", "Make in India", "Startup India", "Skill India", "Atal Innovation Mission", "PM Awas Yojana", "Ujjwala Yojana", "Jan Dhan Yojana", "Mudra Yojana", "Stand Up India", "PM Gati Shakti", "National Education Policy implementation", "Smart Cities Mission", "AMRUT scheme", "Namami Gange", "Jal Jeevan Mission"
+    ],
+    "National Infrastructure": [
+        "National Highway projects", "Bharatmala project", "Sagarmala initiative", "Dedicated Freight Corridor", "High-speed rail projects", "Airport expansion", "Port development", "Inland waterways", "Metro rail networks", "Infrastructure bonds", "PPP projects", "National Infrastructure Pipeline"
+    ],
+    "Census & Demographics": [
+        "Census operations", "Population data", "Demographic surveys", "Caste census debates", "NPR (National Population Register)", "Socio-economic surveys", "Migration statistics"
+    ],
+    "National Missions & Initiatives": [
+        "National Health Mission", "National Rural Health Mission", "National Urban Health Mission", "National Disaster Management", "National Food Security Mission", "National Solar Mission", "National Water Mission", "National Green Tribunal cases", "Pradhan Mantri Gram Sadak Yojana"
+    ],
+    "Administrative Reforms": [
+        "Civil services reforms", "Bureaucratic appointments", "IAS transfers", "IPS postings", "IFS appointments", "All India Services", "Central Secretariat Service", "Administrative tribunals", "Service matters"
+    ],
+    "Regional & State News": [
+        "State elections", "Regional politics", "Municipal corporation news", "Local government updates", "State budgets", "Chief Minister news", "State assemblies"
+    ],
+    "Business & Economy": [
+        "Stock market", "BSE Sensex", "NSE Nifty", "Economy", "GDP", "Inflation", "Banking", "RBI monetary policy", "Budget", "Taxation", "GST", "Startup news", "Corporate earnings", "Industry news", "Foreign investment", "Trade", "Cryptocurrency", "Real estate"
+    ],
+    "Sports": [
+        "Cricket", "IPL (Indian Premier League)", "International cricket", "Kabaddi", "Football", "Hockey", "Olympics", "Commonwealth Games", "Sports personalities", "Tournaments"
+    ],
+    "Entertainment & Bollywood": [
+        "Bollywood news", "Movie releases", "Celebrity news", "Box office collections", "Film reviews", "Music", "Television shows", "OTT platforms", "Web series"
+    ],
+    "Technology": [
+        "Smartphones", "Apps", "Internet", "Social media", "AI and ML", "Startups", "Tech companies", "Gadgets", "Software updates", "Cybersecurity", "Digital payments", "5G"
+    ],
+    "Education": [
+        "Board exams", "Competitive exams (UPSC, SSC, Banking)", "University admissions", "Scholarships", "Online education", "School news", "Higher education", "Study abroad"
+    ],
+    "Health & Wellness": [
+        "Healthcare", "Medical research", "Disease outbreaks", "Public health", "Ayurveda", "Fitness", "Mental health", "Hospitals", "Medical policies", "COVID-19 updates"
+    ],
+    "Crime & Law": [
+        "Crime news", "Police", "Court judgments", "Supreme Court", "High Courts", "Legal reforms", "Investigation", "Law enforcement", "Cybercrime"
+    ],
+    "Social Issues": [
+        "Caste issues", "Women's rights", "Child welfare", "Poverty", "Unemployment", "Education inequality", "Social justice", "Human rights", "LGBTQ+ rights"
+    ],
+    "Environment & Climate": [
+        "Climate change", "Pollution", "Air quality", "Water crisis", "Natural disasters", "Wildlife conservation", "Environmental policies", "Renewable energy", "Sustainability"
+    ],
+    "International News": [
+        "World politics", "India-Pakistan relations", "India-China relations", "USA news", "Middle East", "European Union", "United Nations", "Global economy", "International conflicts"
+    ],
+    "Cities & Metro News": [
+        "Mumbai news", "Delhi news", "Bangalore news", "Chennai news", "Kolkata news", "Hyderabad news", "Pune news", "Ahmedabad news", "Infrastructure development", "Metro rail projects", "Traffic updates"
+    ],
+    "Lifestyle & Culture": [
+        "Fashion", "Travel", "Food", "Festivals", "Art", "Literature", "Heritage", "Traditions", "Relationships"
+    ],
+    "Special Interest Topics": [
+        "Agriculture", "Farmers' issues", "Rural development", "Weather forecasts", "Monsoon updates", "Space research (ISRO)", "Science and research", "Railways", "Aviation", "Automobiles", "Consumer rights", "Religion", "Astrology"
+    ],
+    "Trending & Viral": [
+        "Breaking news", "Trending topics", "Viral videos", "Social media trends", "Controversies", "Sensational news"
+    ]
+}

@@ -45,22 +45,22 @@ load_dotenv()
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-def parse_keywords_from_file(filepath: str) -> List[str]:
+def load_keywords_from_json(filepath: str) -> List[str]:
     """
-    Parses keywords from the custom text file format in keywords.db.
-    It reads all lines that don't start with '[' and aggregates all
-    comma-separated values into a single list of unique keywords.
+    Loads keywords from a JSON file. The JSON file is expected to be a
+    dictionary where each key is a category and each value is a list of
+    keywords.
     """
     keywords = set()
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line.startswith('[') and line:
-                    line_keywords = [kw.strip() for kw in line.split(',')]
-                    keywords.update(line_keywords)
+            data = json.load(f)
+            for category_keywords in data.values():
+                keywords.update(category_keywords)
     except FileNotFoundError:
         logger.error(f"Keyword file not found at: {filepath}")
+    except json.JSONDecodeError:
+        logger.error(f"Error decoding JSON from file: {filepath}")
     
     return [kw for kw in list(keywords) if kw]
 
@@ -703,12 +703,12 @@ class OptimizationWorker:
         logger.info("Initializing Keyword Assigner...")
         try:
             self.keyword_assigner = KeywordAssigner(model=self.model_manager.sentence_transformer)
-            keywords_list = parse_keywords_from_file('keywords.db')
+            keywords_list = load_keywords_from_json('keywords.json')
             if keywords_list:
                 self.keyword_assigner.load_keywords(keywords_list)
                 logger.info(f"Loaded {len(keywords_list)} keywords for assignment.")
             else:
-                logger.warning("No keywords loaded from keywords.db. Keyword assignment will be disabled.")
+                logger.warning("No keywords loaded from keywords.json. Keyword assignment will be disabled.")
                 self.keyword_assigner = None
         except Exception as e:
             logger.error("Failed to initialize KeywordAssigner", exc_info=True)
@@ -1005,6 +1005,7 @@ class ArticleSchema(BaseModel):
     source: str
     bias: str
     published_date: Optional[str]
+    origin: Optional[str]
 
 class BiasDistribution(BaseModel):
     lean_left: int
@@ -1133,6 +1134,9 @@ async def get_clusters():
     clusters_data = cursor.fetchall()
     clusters_response = []
 
+    # Create a mapping from source to origin for quick lookups
+    source_to_origin = {feed["source"]: feed.get("origin", "International") for feed in RSS_FEEDS}
+
     for cluster in clusters_data:
         cluster_id = cluster['id']
         cursor.execute('''
@@ -1141,6 +1145,9 @@ async def get_clusters():
             ORDER BY added_date DESC
         ''', (cluster_id,))
         articles = cursor.fetchall()
+
+        # Sort articles: Indian first, then by the existing date order (stable sort)
+        articles.sort(key=lambda a: source_to_origin.get(a['source'], "International") != "Indian")
 
         bias_counts = defaultdict(int)
         for article in articles:
@@ -1169,7 +1176,8 @@ async def get_clusters():
             ArticleSchema(
                 id=a['id'], url=a['url'], title=a['title'],
                 summary=a['summary'], source=a['source'],
-                bias=a['bias'], published_date=a['published_date']
+                bias=a['bias'], published_date=a['published_date'],
+                origin=source_to_origin.get(a['source'], "International")
             )
             for a in articles
         ]

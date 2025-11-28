@@ -6,6 +6,7 @@ import {
   Menu, 
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
   MoreHorizontal,
   Info,
   ExternalLink,
@@ -20,7 +21,12 @@ import {
   ArrowUpRight,
   Lock,
   Filter,
-  ArrowLeft
+  ArrowLeft,
+  Settings,
+  Phone,
+  User,
+  Globe,
+  X
 } from 'lucide-react';
 
 export const APP_NAME = "GROUND NEWS";
@@ -33,6 +39,7 @@ export const ICONS = {
   Blindspot: ShieldAlert,
   Check: CheckCircle2,
   ChevronRight: ChevronRight,
+  ChevronDown: ChevronDown,
   More: MoreHorizontal,
   Info: Info,
   Link: ExternalLink,
@@ -47,7 +54,12 @@ export const ICONS = {
   ArrowUpRight: ArrowUpRight,
   Lock: Lock,
   Filter: Filter,
-  Back: ArrowLeft
+  Back: ArrowLeft,
+  Settings: Settings,
+  Phone: Phone,
+  User: User,
+  Globe: Globe,
+  Close: X
 };
 
 export const BIAS_COLORS = {

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
+import LeftSidebar from './components/LeftSidebar';
 import ArticleCard from './components/ArticleCard';
 import ClusterDetail from './components/ClusterDetail';
-import { fetchNewsFeed } from './services/mockBackend';
+import TopicPage from './components/TopicPage';
+import { fetchNewsFeed, fetchKeywords } from './services/mockBackend';
 import { NewsCluster } from './types';
 import { ICONS, NAV_ITEMS } from './constants';
 
@@ -14,26 +16,34 @@ const sortClusters = (clusters: NewsCluster[]): NewsCluster[] => {
 };
 
 const App: React.FC = () => {
-  const [clusters, setClusters] = useState<NewsCluster[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const [clusters, setClusters] = useState<NewsCluster[]>([]);
+    // Update state type to match the object structure
+    const [keywords, setKeywords] = useState<{ [key: string]: string[] }>({});
+    const [loading, setLoading] = useState(true);
+  
+const [error, setError] = useState<string | null>(null);
   
   // Navigation State
-  const [view, setView] = useState<'home' | 'detail'>('home');
+  const [view, setView] = useState<'home' | 'detail' | 'topic'>('home');
   const [selectedCluster, setSelectedCluster] = useState<NewsCluster | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const data = await fetchNewsFeed();
+        const [newsData, keywordsData] = await Promise.all([
+            fetchNewsFeed(),
+            fetchKeywords()
+        ]);
         
-        if (Array.isArray(data)) {
+        if (Array.isArray(newsData)) {
             // Filter: Only show clusters updated in the last 24 hours
             const twentyFourHoursAgo = new Date();
             twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
             
-            const freshClusters = data.filter(cluster => {
+            const freshClusters = newsData.filter(cluster => {
                 const clusterDate = new Date(cluster.lastUpdated);
                 return clusterDate > twentyFourHoursAgo;
             });
@@ -43,9 +53,10 @@ const App: React.FC = () => {
         } else {
             setClusters([]); 
         }
+        setKeywords(keywordsData);
         setError(null);
       } catch (err) {
-        console.error("Failed to load news clusters", err);
+        console.error("Failed to load data", err);
         setError("Could not connect to backend service.");
       } finally {
         setLoading(false);
@@ -63,14 +74,30 @@ const App: React.FC = () => {
       window.scrollTo(0, 0);
   };
 
+  const handleTopicClick = (topic: string) => {
+      setSelectedTopic(topic);
+      setView('topic');
+      setIsMenuOpen(false);
+      window.scrollTo(0, 0);
+  };
+
   const handleBack = () => {
       setView('home');
       setSelectedCluster(null);
+      setSelectedTopic('');
       window.scrollTo(0, 0);
   };
 
   const safeClusters = Array.isArray(clusters) ? clusters : [];
   
+  // Filter clusters for the topic view
+  // strict filtering based on database keywords
+  const topicClusters = selectedTopic 
+    ? safeClusters.filter(c => 
+        c.keywords && c.keywords.some(k => k.toLowerCase() === selectedTopic.toLowerCase())
+      )
+    : [];
+
   // Distribute content for the 3-column layout
   const heroStory = safeClusters[0];
   const briefingStory = safeClusters[1];
@@ -86,13 +113,24 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen font-sans bg-[#F8F9FA] text-brand-black selection:bg-blue-100">
       
+      <LeftSidebar 
+        isOpen={isMenuOpen} 
+        onClose={() => setIsMenuOpen(false)} 
+        keywords={keywords}
+        onKeywordClick={handleTopicClick}
+        onHomeClick={handleBack}
+      />
+
       {/* 1. Header Section */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
             <div className="flex justify-between items-center h-16">
                 {/* Left: Branding & Main Nav */}
                 <div className="flex items-center gap-6">
-                    <button className="lg:hidden text-gray-500 hover:text-black">
+                    <button 
+                        className="text-gray-500 hover:text-black p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                        onClick={() => setIsMenuOpen(true)}
+                    >
                         <ICONS.Menu size={24} />
                     </button>
                     <div className="flex items-center space-x-2 cursor-pointer group" onClick={handleBack}>
@@ -101,7 +139,7 @@ const App: React.FC = () => {
                     </div>
                     
                     <nav className="hidden xl:flex space-x-2 ml-2 text-sm font-bold text-gray-500">
-                        <a href="#" className="text-black bg-gray-100 px-4 py-2 rounded-full" onClick={handleBack}>Home</a>
+                        <a href="#" className={`px-4 py-2 rounded-full transition-colors ${view === 'home' ? 'text-black bg-gray-100' : 'hover:text-black hover:bg-gray-100'}`} onClick={handleBack}>Home</a>
                         <a href="#" className="hover:text-black hover:bg-gray-100 px-4 py-2 rounded-full transition-colors">For You</a>
                         <a href="#" className="hover:text-black hover:bg-gray-100 px-4 py-2 rounded-full transition-colors">Local</a>
                         <a href="#" className="hover:text-black hover:bg-gray-100 px-4 py-2 rounded-full transition-colors">Blindspot</a>
@@ -138,7 +176,14 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="pt-8 pb-16">
-        {view === 'detail' && selectedCluster ? (
+        {view === 'topic' ? (
+             <TopicPage 
+                topic={selectedTopic} 
+                clusters={topicClusters} // Removed fallback to safeClusters
+                onClusterClick={handleClusterClick} 
+                onBack={handleBack} 
+            />
+        ) : view === 'detail' && selectedCluster ? (
              <ClusterDetail cluster={selectedCluster} onBack={handleBack} />
         ) : (
             <div className="max-w-[1600px] mx-auto px-4 sm:px-6">

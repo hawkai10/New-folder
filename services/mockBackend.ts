@@ -1,4 +1,5 @@
 import { NewsCluster, Article, BiasRating } from '../types';
+import keywordsData from '../keywords.json';
 
 const API_URL = ''; // Relative path because of Vite proxy
 
@@ -87,6 +88,11 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
     if (!topicLabel) {
       topicLabel = `Topic ${serverCluster.id}`;
     }
+
+    // Parse keywords from comma-separated string to array
+    const keywords: string[] = serverCluster.keywords 
+      ? serverCluster.keywords.split(',').map((k: string) => k.trim()) 
+      : [];
     
     // Extract summaries from the backend response
     const summaries = {
@@ -106,7 +112,7 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
     return {
       id: `cluster-${serverCluster.id}`,
       topicLabel: topicLabel,
-      keywords: [], // Could be extracted from label
+      keywords: keywords, 
       summary: summaries.center || summaries.left || summaries.right || articles.map(a => a.title).join(' | ').substring(0, 200), // Fallback for card view
       summaries,
       articles,
@@ -147,4 +153,16 @@ export const fetchNewsFeed = async (): Promise<NewsCluster[]> => {
     console.error("Failed to connect to backend:", error);
     throw error;
   }
+};
+
+// Simulate fetching keywords from keywords.db
+export const fetchKeywords = async (): Promise<{ [key: string]: string[] }> => {
+  // In a real app, this would hit /keywords endpoint
+  // For now, we use the imported JSON file
+  return new Promise((resolve) => {
+      setTimeout(() => {
+          // Return the full object structure instead of flattening it
+          resolve(keywordsData);
+      }, 300);
+  });
 };
