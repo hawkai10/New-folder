@@ -143,11 +143,24 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ cluster, variant = 'standard'
         {/* Content */}
         <div className="flex-1 flex flex-col justify-between">
             <div>
-                 <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2">
+                    {/* Source Favicon */}
+                    {cluster.articles[0]?.source.favicon && (
+                        <img 
+                            src={cluster.articles[0].source.favicon} 
+                            alt="" 
+                            className="w-4 h-4 rounded-full object-cover"
+                            onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                        />
+                    )}
                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
-                        {cluster.articles[0]?.entities.places[0] || cluster.articles[0]?.source.name}
+                        {cluster.articles[0]?.source.name}
                     </span>
-                    <span className="text-gray-300">•</span>
+                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                        {cluster.articles[0]?.source.name}
+                    </span>                    <span className="text-gray-300">•</span>
                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
                         {cluster.articles[0]?.source.name}
                     </span>

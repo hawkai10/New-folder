@@ -11,6 +11,7 @@ export interface Source {
   name: string;
   domain: string;
   bias: BiasRating;
+  favicon?: string;
 }
 
 export interface Entities {

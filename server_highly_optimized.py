@@ -19,7 +19,7 @@ import uvicorn
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-import faiss  # NEW: Fast similarity search
+import faiss
 
 # ============================================================================
 # LOGGING SETUP
@@ -92,19 +92,18 @@ def robust_date_parser(date_string: Optional[str]) -> Optional[datetime]:
 # CONFIGURATION
 # ============================================================================
 DB_PATH = "news.db"
+FAVICONS_DB_PATH = "favicons.db"
 POLL_INTERVAL = 900
-SIMILARITY_THRESHOLD = 0.65  # OPTIMIZED: Lowered from 0.75 for better clustering
+SIMILARITY_THRESHOLD = 0.65
 MAX_ARTICLES_PER_CLUSTER = 1000
-TIME_WINDOW_HOURS = 24  # NEW: 24-hour time window for clustering
+TIME_WINDOW_HOURS = 24
 
-# OPTIMIZED: Disabled entity extraction for 30% speed boost
-ENTITY_WEIGHT = 0.0  # Disabled
-CONTENT_WEIGHT = 1.0  # Use only content embeddings
+ENTITY_WEIGHT = 0.0
+CONTENT_WEIGHT = 1.0
 
-# PERFORMANCE OPTIMIZATION SETTINGS
 MAX_WORKERS_FEEDS = min(10, len(RSS_FEEDS))
 MAX_WORKERS_ARTICLES = min(20, cpu_count() * 2)
-BATCH_SIZE = 200  # OPTIMIZED: Increased from 100
+BATCH_SIZE = 200
 CONNECTION_TIMEOUT = 10
 MAX_RETRIES = 2
 
@@ -123,6 +122,25 @@ else:
 # DATABASE SETUP
 # ============================================================================
 thread_local = threading.local()
+SOURCE_FAVICONS = {}
+
+def load_favicons():
+    """Load favicons into memory for fast lookup."""
+    global SOURCE_FAVICONS
+    try:
+        if not os.path.exists(FAVICONS_DB_PATH):
+            logger.warning(f"Favicons DB not found at {FAVICONS_DB_PATH}")
+            return
+            
+        conn = sqlite3.connect(FAVICONS_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT source, favicon_url FROM sources_favicons")
+        rows = cursor.fetchall()
+        SOURCE_FAVICONS = {row[0]: row[1] for row in rows}
+        conn.close()
+        logger.info(f"Loaded {len(SOURCE_FAVICONS)} favicons")
+    except Exception as e:
+        logger.error(f"Error loading favicons: {e}")
 
 def get_db_connection():
     """Get thread-safe database connection."""
@@ -167,6 +185,9 @@ def init_database():
             label TEXT,
             centroid BLOB NOT NULL,
             article_count INTEGER DEFAULT 0,
+            left_article_count INTEGER DEFAULT 0,
+            center_article_count INTEGER DEFAULT 0,
+            right_article_count INTEGER DEFAULT 0,
             created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             first_article_date TIMESTAMP,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -174,7 +195,6 @@ def init_database():
             summary_left TEXT,
             summary_center TEXT,
             summary_right TEXT,
-            summaries_generated INTEGER DEFAULT 0,
             keywords TEXT
         )
     ''')
@@ -239,12 +259,12 @@ class ModelManager:
             return None
 
     def generate_cluster_title_with_gemini(self, article_titles: List[str]) -> Optional[str]:
-        """Generate a proper cluster title using Gemini AI with translation support."""
+        """Generate a proper cluster title using Gemini AI with retry logic."""
         if not GEMINI_API_KEY or not article_titles or len(article_titles) == 0:
             return None
-        try:
-            titles_text = "\n".join(article_titles[:10])
-            prompt = f"""Based on these news article titles, generate a concise, informative cluster title that captures the main news story or event.
+
+        titles_text = "\n".join(article_titles[:10])
+        prompt = f"""Based on these news article titles, generate a concise, informative cluster title that captures the main news story or event.
 
 Article titles:
 {titles_text}
@@ -254,15 +274,35 @@ Instructions:
 -The title should sound professional and news-like, directly related to the main topic across the articles. 
 -Do not include quotes or special characters. 
 -Output only the title text, nothing else."""
-
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content(prompt)
-            if response.text:
-                return response.text.strip()
-            return None
-        except Exception as e:
-            logger.error("Error generating cluster title with Gemini", exc_info=True)
-            return None
+        
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        # --- NEW: Retry logic with exponential backoff ---
+        max_retries = 5
+        base_delay = 1  # seconds
+        for attempt in range(max_retries):
+            try:
+                response = model.generate_content(prompt)
+                if response.text:
+                    return response.text.strip()
+                return None # Successful response but no text
+            except Exception as e:
+                # Check if the error is a ResourceExhausted (429) error
+                if "429" in str(e):
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"Gemini API rate limit hit. Retrying in {delay} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error("Gemini API rate limit hit. Max retries reached.")
+                        # Fall through to raise the exception after the last attempt
+                
+                # For non-429 errors or after max retries, log and return None
+                logger.error("Error generating cluster title with Gemini", exc_info=True)
+                return None
+        return None
+        # --- END of new logic ---
 
     def generate_bias_group_summary_with_gemini(self, articles_data: List[Tuple[str, str]]) -> Optional[str]:
         """Generate a 150-200 word summary for a bias group using Gemini AI."""
@@ -334,12 +374,9 @@ class ClusteringEngine:
         self.clusters = {}
         self.cluster_times = {}
         self._lock = threading.Lock()
-
-        # FAISS index for fast similarity search
-        self.dimension = 384  # MiniLM embedding size
-        self.index = faiss.IndexFlatIP(self.dimension)  # Inner product for cosine similarity
-        self.cluster_id_mapping = []  # Maps FAISS index position to cluster_id
-
+        self.dimension = 384
+        self.index = faiss.IndexFlatIP(self.dimension)
+        self.cluster_id_mapping = []
         self.load_clusters_from_db()
 
     def load_clusters_from_db(self):
@@ -361,7 +398,6 @@ class ClusteringEngine:
 
         if centroids:
             centroids_matrix = np.vstack(centroids).astype('float32')
-            # Normalize for cosine similarity
             faiss.normalize_L2(centroids_matrix)
             self.index.add(centroids_matrix)
 
@@ -374,15 +410,10 @@ class ClusteringEngine:
             return None
 
         with self._lock:
-            # Normalize embedding for cosine similarity
             embedding_normalized = article_embedding.copy().reshape(1, -1).astype('float32')
             faiss.normalize_L2(embedding_normalized)
-
-            # Search FAISS index - get top 10 candidates for time filtering
             k = min(10, len(self.cluster_id_mapping))
             similarities, indices = self.index.search(embedding_normalized, k=k)
-
-            # Filter by time window and find best match
             best_cluster_id = None
             best_similarity = -1
 
@@ -391,18 +422,16 @@ class ClusteringEngine:
                 candidate_idx = int(indices[0][i])
                 candidate_cluster_id = self.cluster_id_mapping[candidate_idx]
 
-                # Check time window constraint
                 if published_date and candidate_cluster_id in self.cluster_times:
                     cluster_first_date = self.cluster_times[candidate_cluster_id]
                     if cluster_first_date:
                         try:
                             time_diff = abs((published_date - cluster_first_date).total_seconds() / 3600)
                             if time_diff > TIME_WINDOW_HOURS:
-                                continue  # Skip this cluster - outside time window
+                                continue
                         except Exception:
-                            pass  # If time parsing fails, continue with similarity only
+                            pass
 
-                # Check if this is the best match so far
                 if similarity > best_similarity and similarity >= SIMILARITY_THRESHOLD:
                     best_similarity = similarity
                     best_cluster_id = candidate_cluster_id
@@ -410,9 +439,22 @@ class ClusteringEngine:
             return best_cluster_id
 
     def add_article_to_cluster(self, article_id: int, cluster_id: int, embedding: np.ndarray):
-        """Add article to cluster and update centroid."""
+        """Add article to cluster and update centroid and bias counts."""
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        cursor.execute('SELECT bias FROM articles WHERE id = ?', (article_id,))
+        bias_result = cursor.fetchone()
+        article_bias = bias_result[0] if bias_result else ""
+
+        bias_column_to_update = None
+        if "Left" in article_bias:
+            bias_column_to_update = "left_article_count"
+        elif "Center" in article_bias:
+            bias_column_to_update = "center_article_count"
+        elif "Right" in article_bias:
+            bias_column_to_update = "right_article_count"
+
         cursor.execute('UPDATE articles SET cluster_id = ? WHERE id = ?', (cluster_id, article_id))
         cursor.execute('SELECT article_count FROM clusters WHERE id = ?', (cluster_id,))
         result = cursor.fetchone()
@@ -423,33 +465,40 @@ class ClusteringEngine:
             new_centroid = (old_centroid * article_count + embedding) / (article_count + 1)
             self.clusters[cluster_id] = new_centroid
 
-            # Update FAISS index
-            # Find position in mapping
             try:
                 idx = self.cluster_id_mapping.index(cluster_id)
-                # Normalize and update
                 centroid_normalized = new_centroid.copy().reshape(1, -1).astype('float32')
                 faiss.normalize_L2(centroid_normalized)
-                # FAISS doesn't support in-place updates, but centroid updates are rare
-                # For better performance, we could rebuild index periodically
             except ValueError:
                 pass
-
-        cursor.execute('''
+        
+        update_query = f'''
             UPDATE clusters 
             SET article_count = ?, centroid = ?, last_updated = CURRENT_TIMESTAMP
+                {', ' + bias_column_to_update + ' = ' + bias_column_to_update + ' + 1' if bias_column_to_update else ''}
             WHERE id = ?
-        ''', (article_count + 1, new_centroid.tobytes(), cluster_id))
+        '''
+        cursor.execute(update_query, (article_count + 1, new_centroid.tobytes(), cluster_id))
         conn.commit()
 
     def create_new_cluster(self, article_id: int, embedding: np.ndarray, published_date: Optional[datetime]) -> int:
         """Create a new cluster with the article as founder and add to FAISS index."""
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        cursor.execute('SELECT bias FROM articles WHERE id = ?', (article_id,))
+        bias_result = cursor.fetchone()
+        article_bias = bias_result[0] if bias_result else ""
+
+        left_count, center_count, right_count = 0, 0, 0
+        if "Left" in article_bias: left_count = 1
+        elif "Center" in article_bias: center_count = 1
+        elif "Right" in article_bias: right_count = 1
+
         cursor.execute('''
-            INSERT INTO clusters (centroid, article_count, first_article_date)
-            VALUES (?, 1, ?)
-        ''', (embedding.tobytes(), published_date))
+            INSERT INTO clusters (centroid, article_count, first_article_date, left_article_count, center_article_count, right_article_count)
+            VALUES (?, 1, ?, ?, ?, ?)
+        ''', (embedding.tobytes(), published_date, left_count, center_count, right_count))
 
         cluster_id = cursor.lastrowid
         cursor.execute('UPDATE articles SET cluster_id = ? WHERE id = ?', (cluster_id, article_id))
@@ -458,8 +507,6 @@ class ClusteringEngine:
         with self._lock:
             self.clusters[cluster_id] = embedding
             self.cluster_times[cluster_id] = published_date
-
-            # Add to FAISS index
             embedding_normalized = embedding.copy().reshape(1, -1).astype('float32')
             faiss.normalize_L2(embedding_normalized)
             self.index.add(embedding_normalized)
@@ -498,26 +545,18 @@ class RSSPoller:
                 url = entry.get("link") or entry.get("id") or ""
                 title = entry.get("title", "")
                 summary = entry.get("summary") or entry.get("description") or ""
-                summary = strip_html_tags(summary)
-                if isinstance(summary, str):
-                    summary = summary[:500]
-                else:
-                    summary = ""
+                summary = strip_html_tags(summary)[:500]
 
                 article = {
-                    "url": url,
-                    "title": title,
-                    "summary": summary,
-                    "source": feed_config["source"],
-                    "bias": feed_config["bias"],
+                    "url": url, "title": title, "summary": summary,
+                    "source": feed_config["source"], "bias": feed_config["bias"],
                     "published_date": entry.get("published") or entry.get("updated")
                 }
-
                 if article["url"] and article["title"]:
                     articles.append(article)
 
         except requests.exceptions.Timeout:
-            logger.warning(f"⏱️  Timeout fetching feed: {feed_name}")
+            logger.warning(f"⏱️ Timeout fetching feed: {feed_name}")
         except Exception as e:
             logger.error(f"❌ Error fetching feed {feed_name}: {str(e)[:50]}")
 
@@ -525,61 +564,43 @@ class RSSPoller:
 
     def check_duplicate_urls_batch(self, urls: List[str]) -> set:
         """Check multiple URLs for duplicates in one query (faster)."""
-        if not urls:
-            return set()
+        if not urls: return set()
         conn = get_db_connection()
         cursor = conn.cursor()
         placeholders = ','.join('?' * len(urls))
         query = f'SELECT url FROM articles WHERE url IN ({placeholders})'
         cursor.execute(query, urls)
-        existing_urls = {row[0] for row in cursor.fetchall()}
-        return existing_urls
+        return {row[0] for row in cursor.fetchall()}
 
     def process_article_batch(self, articles: List[Dict]) -> int:
-        """Process multiple articles in batch (OPTIMIZED: no entity extraction)."""
-        if not articles:
-            return 0
+        """Process multiple articles in batch."""
+        if not articles: return 0
 
-        # Deduplicate URLs within batch
         seen_urls = set()
-        unique_articles = []
-        for article in articles:
-            url = article["url"]
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                unique_articles.append(article)
-
-        # Filter duplicates against database
+        unique_articles = [a for a in articles if a["url"] not in seen_urls and not seen_urls.add(a["url"])]
+        
         urls = [a["url"] for a in unique_articles]
         existing_urls = self.check_duplicate_urls_batch(urls)
         new_articles = [a for a in unique_articles if a["url"] not in existing_urls]
 
-        if not new_articles:
-            return 0
+        if not new_articles: return 0
 
         processed_count = 0
         conn = get_db_connection()
         cursor = conn.cursor()
 
         try:
-            # Batch process embeddings
             texts = [f"{a['title']} {a['summary']}" for a in new_articles]
             text_embeddings = self.model_manager.get_text_embeddings_batch(texts)
 
-            # Process each article with pre-computed embeddings
             for idx, article in enumerate(new_articles):
                 try:
-                    published_date_str = article.get("published_date")
-                    published_date = robust_date_parser(published_date_str)
-
-                    # OPTIMIZED: Use text embedding only (no entity extraction)
+                    published_date = robust_date_parser(article.get("published_date"))
                     text_embedding = text_embeddings[idx]
                     final_embedding = text_embedding / np.linalg.norm(text_embedding)
 
-                    # Insert article
                     cursor.execute('''
-                        INSERT OR IGNORE INTO articles 
-                        (url, title, summary, source, bias, embedding, published_date)
+                        INSERT OR IGNORE INTO articles (url, title, summary, source, bias, embedding, published_date)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         article["url"], article["title"], article["summary"],
@@ -591,81 +612,57 @@ class RSSPoller:
                         article_id = cursor.lastrowid
                         conn.commit()
 
-                        # Cluster assignment with FAISS
                         best_cluster = self.clustering_engine.find_best_cluster(final_embedding, published_date)
-
                         if best_cluster is not None:
                             self.clustering_engine.add_article_to_cluster(article_id, best_cluster, final_embedding)
                         else:
                             self.clustering_engine.create_new_cluster(article_id, final_embedding, published_date)
-
                         processed_count += 1
 
                 except Exception as e:
                     logger.error(f"Error processing article in batch: {str(e)[:100]}")
                     conn.rollback()
-                    continue
-
         except Exception as e:
             logger.error(f"Batch processing error: {str(e)}")
-
         return processed_count
 
     def poll_loop(self):
         """Main polling loop with parallel processing for maximum speed."""
         self.running = True
-
         while self.running:
             try:
-                logger.info("\n" + "="*60)
-                logger.info(f"🚀 Starting OPTIMIZED polling cycle at {datetime.now().strftime('%H:%M:%S')}")
-                logger.info("="*60)
-
+                logger.info(f"\n{'='*60}\n🚀 Starting OPTIMIZED polling cycle at {datetime.now().strftime('%H:%M:%S')}\n{'='*60}")
                 cycle_start = time.time()
-                articles_processed = 0
-                total_feeds = len(RSS_FEEDS)
                 all_articles = []
 
-                # PARALLEL FEED FETCHING
                 with ThreadPoolExecutor(max_workers=MAX_WORKERS_FEEDS) as executor:
-                    with tqdm(total=total_feeds, desc="📰 Fetching Feeds (Parallel)", 
-                             unit="feed", leave=True,
-                             bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
-
-                        future_to_feed = {executor.submit(self.fetch_articles_from_feed, feed): feed 
-                                        for feed in RSS_FEEDS}
-
+                    with tqdm(total=len(RSS_FEEDS), desc="📰 Fetching Feeds", unit="feed", leave=True) as pbar:
+                        future_to_feed = {executor.submit(self.fetch_articles_from_feed, feed): feed for feed in RSS_FEEDS}
                         for future in as_completed(future_to_feed):
                             try:
                                 articles, feed_name = future.result()
-                                if articles:
-                                    all_articles.extend(articles)
+                                if articles: all_articles.extend(articles)
                                 pbar.set_postfix_str(f"Latest: {feed_name[:25]}")
-                                pbar.update(1)
                             except Exception as e:
                                 logger.error(f"Feed fetch failed: {str(e)[:50]}")
+                            finally:
                                 pbar.update(1)
-
-                logger.info(f"✓ Fetched {len(all_articles)} articles from {total_feeds} feeds")
-
-                # BATCH PROCESS ARTICLES
+                
+                logger.info(f"✓ Fetched {len(all_articles)} articles from {len(RSS_FEEDS)} feeds")
+                articles_processed = 0
                 if all_articles:
-                    with tqdm(total=len(all_articles), desc="⚡ Processing Articles (Batched)", 
-                             unit="article", leave=True,
-                             bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}]') as pbar:
-
+                    with tqdm(total=len(all_articles), desc="⚡ Processing Articles", unit="article", leave=True) as pbar:
                         for i in range(0, len(all_articles), BATCH_SIZE):
                             batch = all_articles[i:i + BATCH_SIZE]
                             count = self.process_article_batch(batch)
                             articles_processed += count
                             pbar.update(len(batch))
-
+                
                 cycle_time = time.time() - cycle_start
                 logger.info(f"✅ Cycle complete: {articles_processed} new articles indexed in {cycle_time:.1f}s")
                 if cycle_time > 0 and articles_processed > 0:
                     logger.info(f"⚡ Speed: {articles_processed/cycle_time:.1f} articles/second")
 
-                # Trigger optimization
                 if articles_processed > 0 and self.optimizer:
                     logger.info("🔄 Triggering cluster optimization...")
                     self.optimizer.optimize_unlabeled_clusters()
@@ -678,12 +675,10 @@ class RSSPoller:
                 time.sleep(60)
 
     def start(self):
-        """Start polling in background thread."""
         thread = threading.Thread(target=self.poll_loop, daemon=True)
         thread.start()
 
     def stop(self):
-        """Stop polling."""
         self.running = False
         self._session.close()
 
@@ -699,7 +694,6 @@ class OptimizationWorker:
         self.db_path = db_path
         self.running = False
 
-        # NEW: Initialize Keyword Assigner
         logger.info("Initializing Keyword Assigner...")
         try:
             self.keyword_assigner = KeywordAssigner(model=self.model_manager.sentence_transformer)
@@ -708,7 +702,7 @@ class OptimizationWorker:
                 self.keyword_assigner.load_keywords(keywords_list)
                 logger.info(f"Loaded {len(keywords_list)} keywords for assignment.")
             else:
-                logger.warning("No keywords loaded from keywords.json. Keyword assignment will be disabled.")
+                logger.warning("No keywords loaded. Keyword assignment will be disabled.")
                 self.keyword_assigner = None
         except Exception as e:
             logger.error("Failed to initialize KeywordAssigner", exc_info=True)
@@ -732,46 +726,28 @@ class OptimizationWorker:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT DISTINCT c.id FROM clusters c
-                WHERE c.is_labeled = 0 AND c.article_count > 5
-                LIMIT 50
-            ''')
+            cursor.execute('SELECT DISTINCT c.id FROM clusters c WHERE c.is_labeled = 0 AND c.article_count > 5 LIMIT 50')
             clusters_to_label = cursor.fetchall()
-
-            if not clusters_to_label:
-                conn.close()
-                return
             conn.close()
 
-            logger.info(f"🏷️  Found {len(clusters_to_label)} clusters to label")
-
-            with tqdm(total=len(clusters_to_label), desc="🏷️  Labeling Clusters", 
-                     unit="cluster", leave=True,
-                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
-
+            if not clusters_to_label: return
+            
+            logger.info(f"🏷️ Found {len(clusters_to_label)} clusters to label")
+            with tqdm(total=len(clusters_to_label), desc="🏷️ Labeling Clusters", unit="cluster", leave=True) as pbar:
                 successfully_labeled = 0
-
                 with ThreadPoolExecutor(max_workers=min(5, len(clusters_to_label))) as executor:
-                    future_to_cluster = {
-                        executor.submit(self._label_single_cluster, cluster_id): cluster_id 
-                        for (cluster_id,) in clusters_to_label
-                    }
-
+                    future_to_cluster = {executor.submit(self._label_single_cluster, cid): cid for (cid,) in clusters_to_label}
                     for future in as_completed(future_to_cluster):
-                        cluster_id = future_to_cluster[future]
                         try:
                             success, label = future.result()
                             if success:
                                 successfully_labeled += 1
-                                if label:
-                                    pbar.set_postfix_str(f"✓ {label[:30]}...")
+                                if label: pbar.set_postfix_str(f"✓ {label[:30]}...")
                         except Exception:
-                            logger.error(f"Failed to label cluster {cluster_id}")
+                            logger.error(f"Failed to label cluster {future_to_cluster[future]}")
                         finally:
                             pbar.update(1)
-
-                logger.info(f"✅ Successfully labeled {successfully_labeled}/{len(clusters_to_label)} clusters")
+            logger.info(f"✅ Successfully labeled {successfully_labeled}/{len(clusters_to_label)} clusters")
 
         except Exception:
             logger.error("Error in optimize_unlabeled_clusters", exc_info=True)
@@ -782,181 +758,148 @@ class OptimizationWorker:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT title, summary FROM articles WHERE cluster_id = ?
-                LIMIT 50
-            ''', (cluster_id,))
+            cursor.execute('SELECT title, summary FROM articles WHERE cluster_id = ? LIMIT 50', (cluster_id,))
             articles = cursor.fetchall()
-
-            label = None
-            successfully_generated = False
+            label, successfully_generated = None, False
 
             if len(articles) >= 5:
                 article_titles = [title for title, summary in articles]
                 label = self.model_manager.generate_cluster_title_with_gemini(article_titles)
-
                 if label:
                     successfully_generated = True
                 else:
                     documents = [f"{title} {summary}" for title, summary in articles]
                     fallback_label = self.model_manager.label_clusters_with_bertopic(documents)
                     if fallback_label:
-                        label = fallback_label
-                        successfully_generated = True
-                    else:
-                        label = article_titles[0][:80] if article_titles else None
-                        if label:
-                            successfully_generated = True
+                        label, successfully_generated = fallback_label, True
+                    elif article_titles:
+                        label, successfully_generated = article_titles[0][:80], True
 
             if label and successfully_generated:
-                cursor.execute('''
-                    UPDATE clusters SET label = ?, is_labeled = 1 WHERE id = ?
-                ''', (label, cluster_id))
+                cursor.execute('UPDATE clusters SET label = ?, is_labeled = 1 WHERE id = ?', (label, cluster_id))
                 conn.commit()
                 return True, label
             elif label:
-                cursor.execute('''
-                    UPDATE clusters SET label = ? WHERE id = ?
-                ''', (label, cluster_id))
+                cursor.execute('UPDATE clusters SET label = ? WHERE id = ?', (label, cluster_id))
                 conn.commit()
-                return False, label
-
-            return False, None
+            return False, label
 
         except Exception as e:
             logger.error(f"Error labeling cluster {cluster_id}: {str(e)[:50]}")
             return False, None
         finally:
-            if conn:
-                conn.close()
+            if conn: conn.close()
 
     def generate_cluster_summaries(self):
-        """Generate bias-group summaries for clusters that have been labeled."""
+        """Generate summaries for clusters based on new bias count logic."""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT DISTINCT c.id FROM clusters c
-                WHERE c.is_labeled = 1 AND c.summaries_generated = 0 AND c.article_count > 5
+                SELECT id FROM clusters
+                WHERE is_labeled = 1 AND article_count > 5 AND (
+                    (summary_center IS NULL AND summary_left IS NULL AND summary_right IS NULL AND
+                     left_article_count <= 5 AND center_article_count <= 5 AND right_article_count <= 5)
+                    OR
+                    (left_article_count > 5 AND summary_left IS NULL) OR
+                    (center_article_count > 5 AND summary_center IS NULL) OR
+                    (right_article_count > 5 AND summary_right IS NULL)
+                )
                 LIMIT 50
             ''')
             clusters_to_summarize = cursor.fetchall()
-
-            if not clusters_to_summarize:
-                conn.close()
-                return
             conn.close()
 
+            if not clusters_to_summarize: return
+
             logger.info(f"📝 Found {len(clusters_to_summarize)} clusters to summarize")
-
-            with tqdm(total=len(clusters_to_summarize), desc="📝 Generating Summaries", 
-                     unit="cluster", leave=True,
-                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
-
+            with tqdm(total=len(clusters_to_summarize), desc="📝 Generating Summaries", unit="cluster", leave=True) as pbar:
                 successfully_summarized = 0
-
                 with ThreadPoolExecutor(max_workers=min(5, len(clusters_to_summarize))) as executor:
-                    future_to_cluster = {
-                        executor.submit(self._generate_summaries_for_cluster, cluster_id): cluster_id 
-                        for (cluster_id,) in clusters_to_summarize
-                    }
-
+                    future_to_cluster = {executor.submit(self._generate_summaries_for_cluster, cid): cid for (cid,) in clusters_to_summarize}
                     for future in as_completed(future_to_cluster):
-                        cluster_id = future_to_cluster[future]
                         try:
-                            success = future.result()
-                            if success:
+                            if future.result():
                                 successfully_summarized += 1
-                                pbar.set_postfix_str(f"✓ Cluster {cluster_id}")
+                                pbar.set_postfix_str(f"✓ Cluster {future_to_cluster[future]}")
                         except Exception:
-                            logger.error(f"Failed to summarize cluster {cluster_id}")
+                            logger.error(f"Failed to summarize cluster {future_to_cluster[future]}")
                         finally:
                             pbar.update(1)
-
-                logger.info(f"✅ Successfully summarized {successfully_summarized}/{len(clusters_to_summarize)} clusters")
+            logger.info(f"✅ Successfully summarized {successfully_summarized}/{len(clusters_to_summarize)} clusters")
 
         except Exception:
             logger.error("Error in generate_cluster_summaries", exc_info=True)
 
     def _generate_summaries_for_cluster(self, cluster_id: int) -> bool:
-        """Generate summaries for each bias group in a cluster."""
+        """Generate summaries for a cluster based on its bias counts."""
         conn = None
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # Fetch cluster label
-            cursor.execute('SELECT label FROM clusters WHERE id = ?', (cluster_id,))
-            cluster_label_result = cursor.fetchone()
-            cluster_label = cluster_label_result[0] if cluster_label_result else ""
-
             cursor.execute('''
-                SELECT title, summary, bias FROM articles WHERE cluster_id = ?
-                ORDER BY added_date DESC
+                SELECT label, article_count,
+                       left_article_count, center_article_count, right_article_count,
+                       summary_left, summary_center, summary_right
+                FROM clusters WHERE id = ?
             ''', (cluster_id,))
-            articles = cursor.fetchall()
+            cluster_row = cursor.fetchone()
+            if not cluster_row: return False
 
-            if not articles:
-                return False
+            (cluster_label, total_count, left_count, center_count, right_count,
+             summary_left, summary_center, summary_right) = cluster_row
+            updated = False
 
-            # Split articles by bias
-            bias_groups = {"lean_left": [], "center": [], "lean_right": []}
-            for title, summary, bias in articles:
-                if "Left" in bias:
-                    bias_groups["lean_left"].append((title, summary or ""))
-                elif "Center" in bias:
-                    bias_groups["center"].append((title, summary or ""))
-                else:
-                    bias_groups["lean_right"].append((title, summary or ""))
+            # Generate overall summary if no individual group is large enough
+            if (total_count > 5 and left_count <= 5 and center_count <= 5 and right_count <= 5 and
+                not summary_left and not summary_center and not summary_right):
+                cursor.execute('SELECT title, summary FROM articles WHERE cluster_id = ? LIMIT 10', (cluster_id,))
+                overall_summary = self.model_manager.generate_bias_group_summary_with_gemini(cursor.fetchall())
+                if overall_summary:
+                    summary_center, updated = overall_summary, True
 
-            summaries = {"lean_left": None, "center": None, "lean_right": None}
-
-            # Check if any bias group has > 5 articles
-            has_large_group = any(len(group) > 5 for group in bias_groups.values())
-
-            if has_large_group:
-                # Generate summary for each bias group that has > 5 articles
-                for bias_key in ["lean_left", "center", "lean_right"]:
-                    if len(bias_groups[bias_key]) > 5:
-                        top_articles = bias_groups[bias_key][:10]
-                        summary = self.model_manager.generate_bias_group_summary_with_gemini(top_articles)
-                        summaries[bias_key] = summary
-            else:
-                # Use all articles for one common summary
-                all_articles = [(title, summary) for title, summary, _ in articles][:10]
-                common_summary = self.model_manager.generate_bias_group_summary_with_gemini(all_articles)
-                summaries["center"] = common_summary
-
-            # Generate keywords using KeywordAssigner from keywords.db
-            keywords = None
-            all_summaries_text = " ".join(s for s in summaries.values() if s)
+            # Fetch articles if needed for individual summaries
+            articles_by_bias = defaultdict(list)
+            if (left_count > 5 and not summary_left) or \
+               (center_count > 5 and not summary_center) or \
+               (right_count > 5 and not summary_right):
+                cursor.execute('SELECT title, summary, bias FROM articles WHERE cluster_id = ?', (cluster_id,))
+                for title, summary, bias in cursor.fetchall():
+                    if "Left" in bias: articles_by_bias["left"].append((title, summary or ""))
+                    elif "Center" in bias: articles_by_bias["center"].append((title, summary or ""))
+                    elif "Right" in bias: articles_by_bias["right"].append((title, summary or ""))
             
+            # Generate individual summaries
+            if left_count > 5 and not summary_left:
+                summary = self.model_manager.generate_bias_group_summary_with_gemini(articles_by_bias["left"][:10])
+                if summary: summary_left, updated = summary, True
+            if center_count > 5 and not summary_center:
+                summary = self.model_manager.generate_bias_group_summary_with_gemini(articles_by_bias["center"][:10])
+                if summary: summary_center, updated = summary, True
+            if right_count > 5 and not summary_right:
+                summary = self.model_manager.generate_bias_group_summary_with_gemini(articles_by_bias["right"][:10])
+                if summary: summary_right, updated = summary, True
+
+            if not updated: return False
+
+            # Generate and update keywords
+            all_summaries_text = " ".join(s for s in [summary_left, summary_center, summary_right] if s)
+            keywords = None
             if self.keyword_assigner and (cluster_label or all_summaries_text):
                 try:
-                    # Use label as title and combined summaries as summary text
                     assigned = self.keyword_assigner.assign_keywords(
-                        title=cluster_label,
-                        summary=all_summaries_text,
-                        top_k=5,        # Max keywords to assign
-                        threshold=0.25  # Min similarity score
-                    )
-                    if assigned:
-                        keywords = ", ".join([kw for kw, score in assigned])
-                except Exception:
-                    logger.error(f"Error assigning keywords for cluster {cluster_id}", exc_info=True)
-            
-            # Fallback to Gemini if KeywordAssigner failed or is disabled
+                        title=cluster_label, summary=all_summaries_text, top_k=5, threshold=0.25)
+                    if assigned: keywords = ", ".join([kw for kw, score in assigned])
+                except Exception: logger.error(f"Error assigning keywords for cluster {cluster_id}", exc_info=True)
             if not keywords and all_summaries_text:
                 logger.warning(f"Falling back to Gemini for keyword generation for cluster {cluster_id}")
                 keywords = self.model_manager.generate_cluster_keywords_with_gemini(all_summaries_text)
 
-            # Update database
             cursor.execute('''
-                UPDATE clusters
-                SET summary_left = ?, summary_center = ?, summary_right = ?,
-                    summaries_generated = 1, last_updated = CURRENT_TIMESTAMP, keywords = ?
-                WHERE id = ?
-            ''', (summaries["lean_left"], summaries["center"], summaries["lean_right"], keywords, cluster_id))
+                UPDATE clusters SET summary_left = ?, summary_center = ?, summary_right = ?,
+                keywords = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?
+            ''', (summary_left, summary_center, summary_right, keywords, cluster_id))
             conn.commit()
             return True
 
@@ -964,74 +907,45 @@ class OptimizationWorker:
             logger.error(f"Error generating summaries for cluster {cluster_id}: {str(e)[:50]}")
             return False
         finally:
-            if conn:
-                conn.close()
+            if conn: conn.close()
 
     def start(self):
-        """Start optimization in background thread."""
         thread = threading.Thread(target=self.optimize_loop, daemon=True)
         thread.start()
 
     def stop(self):
-        """Stop optimization."""
         self.running = False
 
 # ============================================================================
 # FASTAPI SERVER
 # ============================================================================
 app = FastAPI(title="News Bias Analyzer - Highly Optimized", version="3.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-model_manager = None
-clustering_engine = None
-rss_poller = None
-optimizer = None
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+model_manager, clustering_engine, rss_poller, optimizer = None, None, None, None
 
 # ============================================================================
 # DATA MODELS
 # ============================================================================
 class ArticleSchema(BaseModel):
-    id: int
-    url: str
-    title: str
-    summary: str
-    source: str
-    bias: str
-    published_date: Optional[str]
-    origin: Optional[str]
+    id: int; url: str; title: str; summary: str; source: str; bias: str
+    published_date: Optional[str]; origin: Optional[str]
+    source_favicon: Optional[str] = None
 
 class BiasDistribution(BaseModel):
-    lean_left: int
-    center: int
-    lean_right: int
-    total: int
+    lean_left: int; center: int; lean_right: int; total: int
 
 class BiasSummary(BaseModel):
-    lean_left: Optional[str]
-    center: Optional[str]
-    lean_right: Optional[str]
+    lean_left: Optional[str]; center: Optional[str]; lean_right: Optional[str]
 
 class ClusterSchema(BaseModel):
-    id: int
-    label: Optional[str]
-    article_count: int
+    id: int; label: Optional[str]; article_count: int
     bias_distribution: BiasDistribution
     summaries: Optional[BiasSummary]
     articles: List[ArticleSchema]
-    created_date: str
-    keywords: Optional[str]
+    created_date: str; keywords: Optional[str]
 
 class ClustersResponseSchema(BaseModel):
-    clusters: List[ClusterSchema]
-    total_articles: int
-    total_clusters: int
+    clusters: List[ClusterSchema]; total_articles: int; total_clusters: int
 
 # ============================================================================
 # API ENDPOINTS
@@ -1040,174 +954,60 @@ class ClustersResponseSchema(BaseModel):
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
-@app.get("/test-fetch")
-async def test_fetch():
-    if not rss_poller:
-        return {"error": "RSS poller not initialized"}
-    results = []
-    for feed_config in RSS_FEEDS:
-        articles, _ = rss_poller.fetch_articles_from_feed(feed_config)
-        results.append({
-            "source": feed_config["source"],
-            "articles_found": len(articles),
-            "articles": [{"title": a["title"], "url": a["url"][:50]} for a in articles]
-        })
-    return {"test_results": results}
-
-@app.get("/generate-labels")
-async def generate_labels():
-    if not optimizer or not model_manager:
-        return {"error": "Optimizer not initialized"}
-    try:
-        optimizer.optimize_unlabeled_clusters()
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, label, article_count FROM clusters WHERE is_labeled = 1')
-        labeled_clusters = cursor.fetchall()
-        conn.close()
-        return {
-            "status": "success",
-            "labeled_clusters_count": len(labeled_clusters),
-            "labeled_clusters": [
-                {"id": c[0], "label": c[1], "article_count": c[2]}
-                for c in labeled_clusters
-            ]
-        }
-    except Exception as e:
-        logger.error("/generate-labels failed", exc_info=True)
-        return {"error": str(e)}
-
-@app.get("/generate-summaries")
-async def generate_summaries():
-    if not optimizer or not model_manager:
-        return {"error": "Optimizer not initialized"}
-    try:
-        optimizer.generate_cluster_summaries()
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('SELECT id FROM clusters WHERE summaries_generated = 1')
-        summarized_clusters = cursor.fetchall()
-        conn.close()
-        return {
-            "status": "success",
-            "summarized_clusters_count": len(summarized_clusters),
-            "message": "Bias-group summaries generation started"
-        }
-    except Exception as e:
-        logger.error("/generate-summaries failed", exc_info=True)
-        return {"error": str(e)}
-
-@app.get("/debug/config")
-async def debug_config():
-    return {
-        "gemini_api_key_set": bool(GEMINI_API_KEY),
-        "database_path": DB_PATH,
-        "poll_interval": POLL_INTERVAL,
-        "similarity_threshold": SIMILARITY_THRESHOLD,
-        "time_window_hours": TIME_WINDOW_HOURS,
-        "entity_extraction": "DISABLED" if ENTITY_WEIGHT == 0 else "ENABLED",
-        "max_workers_feeds": MAX_WORKERS_FEEDS,
-        "max_workers_articles": MAX_WORKERS_ARTICLES,
-        "batch_size": BATCH_SIZE,
-        "cpu_count": cpu_count(),
-        "rss_feeds": [{"source": f["source"], "url": f["url"]} for f in RSS_FEEDS],
-        "optimizations": [
-            "FAISS fast similarity search",
-            "Parallel feed fetching",
-            "Batch article processing",
-            "WAL database mode",
-            "24-hour time window clustering",
-            "No entity extraction (30% faster)"
-        ]
-    }
-
 @app.get("/clusters", response_model=ClustersResponseSchema)
 async def get_clusters():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, label, article_count, created_date, summary_left, summary_center, summary_right, keywords FROM clusters
-        WHERE is_labeled = 1 AND article_count > 5
+        SELECT id, label, article_count, created_date, summary_left, summary_center, summary_right, keywords,
+               left_article_count, center_article_count, right_article_count
+        FROM clusters WHERE is_labeled = 1 AND article_count > 5
         ORDER BY last_updated DESC
     ''')
     clusters_data = cursor.fetchall()
     clusters_response = []
-
-    # Create a mapping from source to origin for quick lookups
     source_to_origin = {feed["source"]: feed.get("origin", "International") for feed in RSS_FEEDS}
 
     for cluster in clusters_data:
         cluster_id = cluster['id']
-        cursor.execute('''
-            SELECT id, url, title, summary, source, bias, published_date
-            FROM articles WHERE cluster_id = ?
-            ORDER BY added_date DESC
-        ''', (cluster_id,))
+        cursor.execute('SELECT id, url, title, summary, source, bias, published_date FROM articles WHERE cluster_id = ? ORDER BY added_date DESC', (cluster_id,))
         articles = cursor.fetchall()
-
-        # Sort articles: Indian first, then by the existing date order (stable sort)
         articles.sort(key=lambda a: source_to_origin.get(a['source'], "International") != "Indian")
 
-        bias_counts = defaultdict(int)
-        for article in articles:
-            bias = article['bias']
-            if "Left" in bias:
-                bias_counts['lean_left'] += 1
-            elif "Center" in bias:
-                bias_counts['center'] += 1
-            else:
-                bias_counts['lean_right'] += 1
-
         bias_distribution = BiasDistribution(
-            lean_left=bias_counts['lean_left'],
-            center=bias_counts['center'],
-            lean_right=bias_counts['lean_right'],
-            total=len(articles)
+            lean_left=cluster['left_article_count'],
+            center=cluster['center_article_count'],
+            lean_right=cluster['right_article_count'],
+            total=cluster['article_count']
         )
-
         summaries = BiasSummary(
             lean_left=cluster['summary_left'],
             center=cluster['summary_center'],
             lean_right=cluster['summary_right']
         )
-
         articles_list = [
             ArticleSchema(
-                id=a['id'], url=a['url'], title=a['title'],
-                summary=a['summary'], source=a['source'],
+                id=a['id'], url=a['url'], title=a['title'], summary=a['summary'], source=a['source'],
                 bias=a['bias'], published_date=a['published_date'],
-                origin=source_to_origin.get(a['source'], "International")
-            )
-            for a in articles
+                origin=source_to_origin.get(a['source'], "International"),
+                source_favicon=SOURCE_FAVICONS.get(a['source'])
+            ) for a in articles
         ]
-
-        cluster_response = ClusterSchema(
-            id=cluster_id,
-            label=cluster['label'] or f"Cluster {cluster_id}",
-            article_count=cluster['article_count'],
-            bias_distribution=bias_distribution,
-            summaries=summaries,
-            articles=articles_list,
-            created_date=cluster['created_date'],
+        clusters_response.append(ClusterSchema(
+            id=cluster_id, label=cluster['label'] or f"Cluster {cluster_id}",
+            article_count=cluster['article_count'], bias_distribution=bias_distribution,
+            summaries=summaries, articles=articles_list, created_date=cluster['created_date'],
             keywords=cluster['keywords']
-        )
-        clusters_response.append(cluster_response)
+        ))
 
     cursor.execute('SELECT COUNT(DISTINCT id) FROM clusters WHERE is_labeled = 1 AND article_count > 5')
     total_clusters = cursor.fetchone()[0]
-    cursor.execute('''
-        SELECT COUNT(id) FROM articles
-        WHERE cluster_id IN (SELECT id FROM clusters WHERE is_labeled = 1 AND article_count > 5)
-    ''')
+    cursor.execute('SELECT COUNT(id) FROM articles WHERE cluster_id IN (SELECT id FROM clusters WHERE is_labeled = 1 AND article_count > 5)')
     total_articles = cursor.fetchone()[0]
     conn.close()
 
-    return ClustersResponseSchema(
-        clusters=clusters_response,
-        total_articles=total_articles,
-        total_clusters=total_clusters
-    )
+    return ClustersResponseSchema(clusters=clusters_response, total_articles=total_articles, total_clusters=total_clusters)
 
 @app.get("/stats")
 async def get_stats():
@@ -1220,10 +1020,8 @@ async def get_stats():
     cursor.execute('SELECT bias, COUNT(*) as count FROM articles GROUP BY bias')
     bias_stats = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
-
     return {
-        "total_articles": total_articles,
-        "total_clusters": total_clusters,
+        "total_articles": total_articles, "total_clusters": total_clusters,
         "bias_distribution": bias_stats,
         "clustering_efficiency": f"{(1 - total_clusters/max(total_articles, 1)) * 100:.1f}%",
         "timestamp": datetime.now().isoformat()
@@ -1235,15 +1033,8 @@ async def get_stats():
 @app.on_event("startup")
 async def startup_event():
     global model_manager, clustering_engine, rss_poller, optimizer
-
     logger.info("🚀 STARTING HIGHLY OPTIMIZED NEWS BIAS ANALYZER SERVER")
-    logger.info(f"⚡ Parallel workers: {MAX_WORKERS_FEEDS} feeds, {MAX_WORKERS_ARTICLES} articles")
-    logger.info(f"📦 Batch size: {BATCH_SIZE} articles")
-    logger.info(f"🎯 Similarity threshold: {SIMILARITY_THRESHOLD} (optimized for better clustering)")
-    logger.info(f"⏱️  Time window: {TIME_WINDOW_HOURS} hours")
-    logger.info(f"🚫 Entity extraction: DISABLED (30% speed boost)")
-    logger.info(f"⚡ FAISS: ENABLED (100x faster similarity search)")
-
+    load_favicons()
     init_database()
     model_manager = ModelManager()
     clustering_engine = ClusteringEngine(DB_PATH)
@@ -1252,17 +1043,14 @@ async def startup_event():
     rss_poller.optimizer = optimizer
     rss_poller.start()
     optimizer.start()
-
     logger.info("✅ HIGHLY OPTIMIZED SERVER READY!")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     global rss_poller, optimizer
     logger.info("Shutting down server...")
-    if rss_poller:
-        rss_poller.stop()
-    if optimizer:
-        optimizer.stop()
+    if rss_poller: rss_poller.stop()
+    if optimizer: optimizer.stop()
     logger.info("Server stopped.")
 
 # ============================================================================

@@ -53,6 +53,15 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
       // Use provided image or generate a stateless one
       const imageUrl = serverArticle.top_image || serverArticle.image_url || getStatelessImageUrl(articleUrl);
 
+      // Handle source being either a string or an object { name, favicon }
+      const sourceName = typeof serverArticle.source === 'object' 
+        ? serverArticle.source.name 
+        : serverArticle.source;
+
+      // Get favicon from separate field or source object
+      const sourceFavicon = serverArticle.source_favicon || 
+        (typeof serverArticle.source === 'object' ? serverArticle.source.favicon : undefined);
+
       return {
         id: `${serverCluster.id}-${serverArticle.id}`,
         title: serverArticle.title,
@@ -61,10 +70,11 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
         publishedAt: serverArticle.published_date || new Date().toISOString(),
         imageUrl: imageUrl,
         source: {
-          id: serverArticle.source,
-          name: serverArticle.source,
+          id: sourceName,
+          name: sourceName,
           bias: biasMap[serverArticle.bias] || BiasRating.CENTER,
-          domain: new URL(serverArticle.url).hostname
+          domain: new URL(serverArticle.url).hostname,
+          favicon: sourceFavicon
         },
         entities
       };
@@ -131,10 +141,11 @@ export const fetchNewsFeed = async (): Promise<NewsCluster[]> => {
   try {
     // We use the relative path '/clusters' so Vite proxies it to localhost:8000
     // If we used absolute URL, we might hit CORS issues if backend doesn't handle it.
-    const response = await fetch(`/clusters`);
+    const url = '/clusters';
+    const response = await fetch(url);
     
     if (!response.ok) {
-        throw new Error(`Backend Error: ${response.status} ${response.statusText}`);
+        throw new Error(`Backend Error requesting ${url}: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
