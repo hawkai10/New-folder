@@ -1,5 +1,4 @@
 import React from 'react';
-import { BIAS_COLORS } from '../constants';
 
 interface BiasMeterProps {
   distribution: {
@@ -8,40 +7,42 @@ interface BiasMeterProps {
     right: number;
   };
   totalSources?: number;
+  hideLabels?: boolean;
+  height?: string;
 }
 
-const BiasMeter: React.FC<BiasMeterProps> = ({ distribution, totalSources }) => {
+const BiasMeter: React.FC<BiasMeterProps> = ({ distribution, totalSources, hideLabels, height = "h-2" }) => {
   const { left, center, right } = distribution;
-
-  // Find dominant bias for the text label
-  let maxVal = Math.max(left, center, right);
-  let dominantLabel = 'Balanced';
-  if (maxVal === left && left > 40) dominantLabel = 'Left';
-  if (maxVal === center && center > 40) dominantLabel = 'Center';
-  if (maxVal === right && right > 40) dominantLabel = 'Right';
 
   return (
     <div className="w-full">
-      <div className="flex w-full h-2 rounded-sm overflow-hidden mb-2">
-        <div className="bg-bias-left" style={{ width: `${left}%` }}></div>
-        <div className="bg-gray-200" style={{ width: `${center}%` }}></div>
-        <div className="bg-bias-right" style={{ width: `${right}%` }}></div>
+      <div className={`flex w-full ${height} rounded-full overflow-hidden bg-gray-100`}>
+        {/* Left Segment */}
+        <div 
+            className="bg-bias-left transition-all duration-500 ease-out relative group" 
+            style={{ width: `${left}%` }}
+        ></div>
+        
+        {/* Center Segment - using a lighter gray or specific color if needed */}
+        <div 
+            className="bg-gray-300 transition-all duration-500 ease-out relative group border-l border-r border-white/20" 
+            style={{ width: `${center}%` }}
+        ></div>
+        
+        {/* Right Segment */}
+        <div 
+            className="bg-bias-right transition-all duration-500 ease-out relative group" 
+            style={{ width: `${right}%` }}
+        ></div>
       </div>
       
-      <div className="flex items-center text-[10px] sm:text-xs text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-        <span className={`mr-1 ${
-            dominantLabel === 'Left' ? 'text-blue-600' : 
-            dominantLabel === 'Right' ? 'text-red-600' : 'text-gray-600'
-        }`}>
-            {maxVal}% {dominantLabel} coverage
-        </span>
-        {totalSources !== undefined && (
-            <>
-                <span className="mx-1">:</span>
-                <span>{totalSources} sources</span>
-            </>
-        )}
-      </div>
+      {!hideLabels && (
+          <div className="flex justify-between mt-1 text-[10px] font-medium text-gray-400">
+            <span>Left</span>
+            <span>Center</span>
+            <span>Right</span>
+          </div>
+      )}
     </div>
   );
 };

@@ -154,7 +154,8 @@ def init_database():
             summary_left TEXT,
             summary_center TEXT,
             summary_right TEXT,
-            summaries_generated INTEGER DEFAULT 0
+            summaries_generated INTEGER DEFAULT 0,
+            keywords TEXT
         )
     ''')
 
@@ -273,6 +274,33 @@ Output ONLY the summary paragraph, nothing else."""
             return None
         except Exception as e:
             logger.error("Error generating bias group summary with Gemini", exc_info=True)
+            return None
+
+    def generate_cluster_keywords_with_gemini(self, text_to_summarize: str) -> Optional[str]:
+        """Generate 3 keywords for a text using Gemini AI."""
+        if not GEMINI_API_KEY or not text_to_summarize:
+            return None
+        try:
+            prompt = f"""Based on the following summary text, generate exactly 3 relevant keywords.
+
+Summary:
+{text_to_summarize}
+
+GUIDELINES:
+- Keywords must be broad themes, not specific people, places, or events.
+- Think in general categories (e.g., "Economy", "Elections", "Climate Policy") instead of specifics.
+- Each keyword should be a single word or a short general phrase (max 2–3 words).
+- Output only the 3 keywords separated by commas.
+Example output: "Economy, Trade Relations, Climate Policy"
+"""
+
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            response = model.generate_content(prompt)
+            if response.text:
+                return response.text.strip()
+            return None
+        except Exception as e:
+            logger.error("Error generating cluster keywords with Gemini", exc_info=True)
             return None
 
 # ============================================================================
@@ -859,13 +887,19 @@ class OptimizationWorker:
                 common_summary = self.model_manager.generate_bias_group_summary_with_gemini(all_articles)
                 summaries["center"] = common_summary
 
+            # Generate keywords from summaries
+            keywords = None
+            all_summaries_text = " ".join(s for s in summaries.values() if s)
+            if all_summaries_text:
+                keywords = self.model_manager.generate_cluster_keywords_with_gemini(all_summaries_text)
+
             # Update database
             cursor.execute('''
                 UPDATE clusters
                 SET summary_left = ?, summary_center = ?, summary_right = ?,
-                    summaries_generated = 1, last_updated = CURRENT_TIMESTAMP
+                    summaries_generated = 1, last_updated = CURRENT_TIMESTAMP, keywords = ?
                 WHERE id = ?
-            ''', (summaries["lean_left"], summaries["center"], summaries["lean_right"], cluster_id))
+            ''', (summaries["lean_left"], summaries["center"], summaries["lean_right"], keywords, cluster_id))
             conn.commit()
             return True
 
@@ -934,6 +968,7 @@ class ClusterSchema(BaseModel):
     summaries: Optional[BiasSummary]
     articles: List[ArticleSchema]
     created_date: str
+    keywords: Optional[str]
 
 class ClustersResponseSchema(BaseModel):
     clusters: List[ClusterSchema]
@@ -1034,7 +1069,7 @@ async def get_clusters():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, label, article_count, created_date, summary_left, summary_center, summary_right FROM clusters
+        SELECT id, label, article_count, created_date, summary_left, summary_center, summary_right, keywords FROM clusters
         WHERE is_labeled = 1 AND article_count > 5
         ORDER BY last_updated DESC
     ''')
@@ -1089,7 +1124,8 @@ async def get_clusters():
             bias_distribution=bias_distribution,
             summaries=summaries,
             articles=articles_list,
-            created_date=cluster['created_date']
+            created_date=cluster['created_date'],
+            keywords=cluster['keywords']
         )
         clusters_response.append(cluster_response)
 

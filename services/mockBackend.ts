@@ -2,6 +2,15 @@ import { NewsCluster, Article, BiasRating } from '../types';
 
 const API_URL = ''; // Relative path because of Vite proxy
 
+// Generate a stateless stateless image URL using a proxy service
+const getStatelessImageUrl = (articleUrl: string): string => {
+  // We use Microlink API to extract the image on-the-fly.
+  // This avoids storing images in the DB.
+  // We encode the URL to ensure it passes safely.
+  const encodedUrl = encodeURIComponent(articleUrl);
+  return `https://api.microlink.io/?url=${encodedUrl}&screenshot=false&meta=true&embed=image.url`;
+};
+
 // Transform server response to match frontend types
 const transformServerResponse = (serverData: any): NewsCluster[] => {
   if (!serverData || !serverData.clusters) {
@@ -39,12 +48,17 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
         'Right': BiasRating.RIGHT,
       };
 
+      const articleUrl = serverArticle.url;
+      // Use provided image or generate a stateless one
+      const imageUrl = serverArticle.top_image || serverArticle.image_url || getStatelessImageUrl(articleUrl);
+
       return {
         id: `${serverCluster.id}-${serverArticle.id}`,
         title: serverArticle.title,
         summary: serverArticle.summary || '',
-        url: serverArticle.url,
+        url: articleUrl,
         publishedAt: serverArticle.published_date || new Date().toISOString(),
+        imageUrl: imageUrl,
         source: {
           id: serverArticle.source,
           name: serverArticle.source,
@@ -81,6 +95,14 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
       right: serverCluster.summaries?.lean_right || null,
     };
 
+    // Calculate lastUpdated based on the most recent article
+    let lastUpdated = new Date().toISOString();
+    if (articles.length > 0) {
+      const timestamps = articles.map(a => new Date(a.publishedAt).getTime());
+      const maxTimestamp = Math.max(...timestamps);
+      lastUpdated = new Date(maxTimestamp).toISOString();
+    }
+
     return {
       id: `cluster-${serverCluster.id}`,
       topicLabel: topicLabel,
@@ -94,7 +116,7 @@ const transformServerResponse = (serverData: any): NewsCluster[] => {
         right: Math.round((bias.lean_right / total) * 100) || 0
       },
       totalSources: new Set(articles.map(a => a.source.name)).size,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: lastUpdated
     };
   });
 };
