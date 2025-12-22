@@ -275,7 +275,7 @@ Instructions:
 -Do not include quotes or special characters. 
 -Output only the title text, nothing else."""
         
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # --- NEW: Retry logic with exponential backoff ---
         max_retries = 5
@@ -327,7 +327,7 @@ Articles:
 
 Output ONLY the summary paragraph, nothing else."""
 
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             if response.text:
                 return response.text.strip()
@@ -354,7 +354,7 @@ GUIDELINES:
 Example output: "Economy, Trade Relations, Climate Policy"
 """
 
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             if response.text:
                 return response.text.strip()
@@ -626,44 +626,71 @@ class RSSPoller:
             logger.error(f"Batch processing error: {str(e)}")
         return processed_count
 
+    def _process_feeds_subset(self, feeds: List[Dict], desc_prefix: str) -> int:
+        """Helper to fetch and process a specific subset of feeds."""
+        if not feeds:
+            return 0
+            
+        subset_articles = []
+        # Calculate dynamic workers for this batch, capped at 10
+        workers = min(10, len(feeds))
+        
+        # 1. Fetch Phase
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            with tqdm(total=len(feeds), desc=f"{desc_prefix} Fetching", unit="feed", leave=True) as pbar:
+                future_to_feed = {executor.submit(self.fetch_articles_from_feed, feed): feed for feed in feeds}
+                for future in as_completed(future_to_feed):
+                    try:
+                        articles, feed_name = future.result()
+                        if articles: subset_articles.extend(articles)
+                        pbar.set_postfix_str(f"Latest: {feed_name[:25]}")
+                    except Exception as e:
+                        logger.error(f"Feed fetch failed: {str(e)[:50]}")
+                    finally:
+                        pbar.update(1)
+
+        # 2. Processing Phase
+        processed_count = 0
+        if subset_articles:
+            with tqdm(total=len(subset_articles), desc=f"{desc_prefix} Processing", unit="article", leave=True) as pbar:
+                for i in range(0, len(subset_articles), BATCH_SIZE):
+                    batch = subset_articles[i:i + BATCH_SIZE]
+                    count = self.process_article_batch(batch)
+                    processed_count += count
+                    pbar.update(len(batch))
+                    
+        return processed_count
+
     def poll_loop(self):
-        """Main polling loop with parallel processing for maximum speed."""
+        """Main polling loop with prioritized processing for Indian feeds."""
         self.running = True
         while self.running:
             try:
-                logger.info(f"\n{'='*60}\n🚀 Starting OPTIMIZED polling cycle at {datetime.now().strftime('%H:%M:%S')}\n{'='*60}")
+                logger.info(f"\n{'='*60}\n🚀 Starting PRIORITIZED polling cycle at {datetime.now().strftime('%H:%M:%S')}\n{'='*60}")
                 cycle_start = time.time()
-                all_articles = []
-
-                with ThreadPoolExecutor(max_workers=MAX_WORKERS_FEEDS) as executor:
-                    with tqdm(total=len(RSS_FEEDS), desc="📰 Fetching Feeds", unit="feed", leave=True) as pbar:
-                        future_to_feed = {executor.submit(self.fetch_articles_from_feed, feed): feed for feed in RSS_FEEDS}
-                        for future in as_completed(future_to_feed):
-                            try:
-                                articles, feed_name = future.result()
-                                if articles: all_articles.extend(articles)
-                                pbar.set_postfix_str(f"Latest: {feed_name[:25]}")
-                            except Exception as e:
-                                logger.error(f"Feed fetch failed: {str(e)[:50]}")
-                            finally:
-                                pbar.update(1)
                 
-                logger.info(f"✓ Fetched {len(all_articles)} articles from {len(RSS_FEEDS)} feeds")
-                articles_processed = 0
-                if all_articles:
-                    with tqdm(total=len(all_articles), desc="⚡ Processing Articles", unit="article", leave=True) as pbar:
-                        for i in range(0, len(all_articles), BATCH_SIZE):
-                            batch = all_articles[i:i + BATCH_SIZE]
-                            count = self.process_article_batch(batch)
-                            articles_processed += count
-                            pbar.update(len(batch))
+                # Split feeds based on origin
+                indian_feeds = [f for f in RSS_FEEDS if f.get("origin") == "Indian"]
+                rest_feeds = [f for f in RSS_FEEDS if f.get("origin") != "Indian"]
+                
+                total_processed = 0
+                
+                # Phase 1: Process Indian Feeds (High Priority)
+                if indian_feeds:
+                    logger.info(f"🇮🇳 Phase 1: Prioritizing {len(indian_feeds)} Indian feeds...")
+                    total_processed += self._process_feeds_subset(indian_feeds, "🇮🇳")
+                
+                # Phase 2: Process International Feeds (Standard Priority)
+                if rest_feeds:
+                    logger.info(f"🌍 Phase 2: Processing {len(rest_feeds)} International feeds...")
+                    total_processed += self._process_feeds_subset(rest_feeds, "🌍")
                 
                 cycle_time = time.time() - cycle_start
-                logger.info(f"✅ Cycle complete: {articles_processed} new articles indexed in {cycle_time:.1f}s")
-                if cycle_time > 0 and articles_processed > 0:
-                    logger.info(f"⚡ Speed: {articles_processed/cycle_time:.1f} articles/second")
+                logger.info(f"✅ Cycle complete: {total_processed} new articles indexed in {cycle_time:.1f}s")
+                if cycle_time > 0 and total_processed > 0:
+                    logger.info(f"⚡ Speed: {total_processed/cycle_time:.1f} articles/second")
 
-                if articles_processed > 0 and self.optimizer:
+                if total_processed > 0 and self.optimizer:
                     logger.info("🔄 Triggering cluster optimization...")
                     self.optimizer.optimize_unlabeled_clusters()
 
@@ -954,15 +981,57 @@ class ClustersResponseSchema(BaseModel):
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
+# --- NEW: Helper functions for cluster showing logic ---
+def check_cluster_recency(articles: List[sqlite3.Row], minutes: int = 30) -> bool:
+    """Check if cluster has any articles published within the last N minutes."""
+    now = datetime.now()
+    for article in articles:
+        pub_date = article['published_date']
+        if pub_date:
+            try:
+                # Handle both string and datetime objects
+                if isinstance(pub_date, str):
+                    dt = date_parse(pub_date)
+                else:
+                    dt = pub_date
+                
+                # Normalize timezone for comparison (compare as naive/local)
+                if dt.tzinfo is not None:
+                    dt = dt.replace(tzinfo=None)
+                    
+                if (now - dt).total_seconds() < minutes * 60:
+                    return True
+            except Exception:
+                continue
+    return False
+
+def check_cluster_size(cluster: sqlite3.Row, min_count: int = 5) -> bool:
+    """Check if cluster meets the article count threshold."""
+    return cluster['article_count'] > min_count
+
+def should_show_cluster(cluster: sqlite3.Row, articles: List[sqlite3.Row]) -> bool:
+    """
+    Decide whether to show the cluster based on recency and size.
+    Logic: Show if it's a large cluster (established topic) OR if it has breaking news (recent articles).
+    """
+    is_large = check_cluster_size(cluster, min_count=5)
+    is_recent = check_cluster_recency(articles, minutes=30)
+    
+    return is_large or is_recent
+# --- END of new logic ---
+
 @app.get("/clusters", response_model=ClustersResponseSchema)
 async def get_clusters():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    # Modified query: Removed strict 'article_count > 5' from SQL to allow Python logic to decide
+    # We still filter by is_labeled=1 to ensure quality
     cursor.execute('''
         SELECT id, label, article_count, created_date, summary_left, summary_center, summary_right, keywords,
                left_article_count, center_article_count, right_article_count
-        FROM clusters WHERE is_labeled = 1 AND article_count > 5
+        FROM clusters WHERE is_labeled = 1
         ORDER BY last_updated DESC
     ''')
     clusters_data = cursor.fetchall()
@@ -973,6 +1042,12 @@ async def get_clusters():
         cluster_id = cluster['id']
         cursor.execute('SELECT id, url, title, summary, source, bias, published_date FROM articles WHERE cluster_id = ? ORDER BY added_date DESC', (cluster_id,))
         articles = cursor.fetchall()
+
+        # --- NEW: Apply the decision logic ---
+        if not should_show_cluster(cluster, articles):
+            continue
+        # -------------------------------------
+
         articles.sort(key=lambda a: source_to_origin.get(a['source'], "International") != "Indian")
 
         bias_distribution = BiasDistribution(
